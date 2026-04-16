@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PULSE — Progress Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #080808;
+      --surface: #101010;
+      --surface2: #181818;
+      --border: #252525;
+      --accent: #f59e0b;
+      --accent-dim: rgba(245,158,11,0.12);
+      --red: #ef4444;
+      --green: #22c55e;
+      --text: #c8c8c8;
+      --text-dim: #4a4a4a;
+      --text-bright: #f0f0f0;
+      --mono: 'JetBrains Mono', monospace;
+      --display: 'Bebas Neue', cursive;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 13px; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .shell {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 28px 24px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+    .logo {
+      font-family: var(--display);
+      font-size: 52px;
+      letter-spacing: 6px;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .logo-sub {
+      font-size: 10px;
+      letter-spacing: 3px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+    .header-right { text-align: right; }
+    .date-big {
+      font-family: var(--display);
+      font-size: 24px;
+      letter-spacing: 2px;
+      color: var(--text-bright);
+    }
+    .time-live {
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 1px;
+      margin-top: 3px;
+    }
+
+    /* ── DAY NAV ── */
+    .day-nav {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .nav-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 6px 14px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: all 0.15s;
+    }
+    .nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .nav-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+    .nav-btn.today-btn {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .nav-date-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 1px;
+      min-width: 150px;
+      text-align: center;
+    }
+
+    /* ── MAIN GRID ── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 290px;
+      gap: 20px;
+    }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 22px;
+    }
+    .card-micro {
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .card-heading {
+      font-family: var(--display);
+      font-size: 19px;
+      letter-spacing: 2px;
+      color: var(--text-bright);
+      margin-bottom: 18px;
+    }
+
+    /* ── CHART ── */
+    .chart-wrap { position: relative; height: 300px; }
+
+    /* ── RIGHT PANEL ── */
+    .right-panel { display: flex; flex-direction: column; gap: 16px; }
+
+    /* ── INPUT CARD ── */
+    .hour-big {
+      font-family: var(--display);
+      font-size: 42px;
+      color: var(--accent);
+      letter-spacing: 4px;
+      line-height: 1;
+      margin-bottom: 14px;
+    }
+    .field-label {
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 7px;
+    }
+    .hour-select {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 9px 10px;
+      outline: none;
+      cursor: pointer;
+      margin-bottom: 16px;
+      appearance: none;
+      transition: border-color 0.15s;
+    }
+    .hour-select:focus { border-color: var(--accent); }
+    .score-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .score-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-family: var(--display);
+      font-size: 22px;
+      padding: 10px 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+    }
+    .score-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .score-btn.sel { background: var(--accent); border-color: var(--accent); color: #000; }
+    .log-btn {
+      width: 100%;
+      background: var(--accent);
+      border: none;
+      color: #000;
+      font-family: var(--display);
+      font-size: 24px;
+      letter-spacing: 3px;
+      padding: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .log-btn:hover { background: #fbbf24; transform: translateY(-1px); }
+    .log-btn:active { transform: translateY(0); }
+    .log-btn.ok { background: var(--green); animation: pulse 0.4s ease; }
+    @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.03)} }
+
+    /* ── STATS CARD ── */
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-name { font-size: 10px; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; }
+    .stat-val { font-family: var(--display); font-size: 24px; color: var(--accent); letter-spacing: 1px; }
+    .stat-val.sm { font-size: 16px; color: var(--text); }
+
+    /* ── LOG LIST ── */
+    .log-list { max-height: 130px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+    .log-entry {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      background: var(--surface2);
+      border-left: 2px solid var(--border);
+      font-size: 11px;
+      animation: slidein 0.2s ease;
+    }
+    @keyframes slidein { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:translateX(0)} }
+    .log-hour { color: var(--text-dim); min-width: 38px; }
+    .log-bar { flex: 1; height: 2px; background: var(--border); }
+    .log-bar-fill { height: 100%; background: var(--accent); transition: width 0.4s ease; }
+    .log-score { font-family: var(--display); font-size: 18px; color: var(--accent); min-width: 18px; text-align: right; }
+    .del-btn {
+      background: none; border: none; color: var(--text-dim);
+      cursor: pointer; font-size: 10px; padding: 0 2px;
+      opacity: 0; transition: opacity 0.15s;
+    }
+    .log-entry:hover .del-btn { opacity: 1; }
+    .del-btn:hover { color: var(--red); }
+    .empty-log { color: var(--text-dim); font-size: 11px; padding: 8px; letter-spacing: 1px; }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 1px;
+    }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      background: var(--surface2);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 1px;
+      padding: 10px 18px;
+      transform: translateY(60px);
+      opacity: 0;
+      transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);
+      pointer-events: none;
+      z-index: 999;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 800px) {
+      .main-grid { grid-template-columns: 1fr; }
+      .right-panel { flex-direction: row; flex-wrap: wrap; }
+      .card { flex: 1 1 260px; }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- HEADER -->
+  <header>
+    <div>
+      <div class="logo">PULSE</div>
+      <div class="logo-sub">// DAILY PROGRESS TRACKER</div>
+    </div>
+    <div class="header-right">
+      <div class="date-big" id="headerDate">—</div>
+      <div class="time-live" id="headerTime">—</div>
+    </div>
+  </header>
+
+  <!-- DAY NAVIGATION -->
+  <div class="day-nav">
+    <button class="nav-btn" onclick="shiftDay(-1)">◀ PREV</button>
+    <span class="nav-date-label" id="navLabel">—</span>
+    <button class="nav-btn" id="nextBtn" onclick="shiftDay(1)">NEXT ▶</button>
+    <button class="nav-btn today-btn" onclick="goToday()">TODAY</button>
+  </div>
+
+  <!-- MAIN GRID -->
+  <div class="main-grid">
+
+    <!-- CHART CARD -->
+    <div class="card">
+      <div class="card-micro">hourly output</div>
+      <div class="card-heading">DAILY PROGRESS GRAPH</div>
+      <div class="chart-wrap">
+        <canvas id="chart"></canvas>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+
+      <!-- INPUT CARD -->
+      <div class="card">
+        <div class="card-micro">log entry</div>
+        <div class="hour-big" id="hourDisplay">00:00</div>
+
+        <div class="field-label">select hour</div>
+        <select class="hour-select" id="hourSel" onchange="onHourChange()"></select>
+
+        <div class="field-label">score &nbsp;0 — 5</div>
+        <div class="score-grid" id="scoreGrid"></div>
+
+        <button class="log-btn" id="logBtn" onclick="logEntry()">LOG ENTRY</button>
+      </div>
+
+      <!-- STATS CARD -->
+      <div class="card">
+        <div class="card-micro">daily stats</div>
+        <div class="stat-row">
+          <span class="stat-name">Avg Score</span>
+          <span class="stat-val" id="sAvg">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Peak Hour</span>
+          <span class="stat-val sm" id="sPeak">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Hours Logged</span>
+          <span class="stat-val" id="sLogged">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Total Points</span>
+          <span class="stat-val" id="sTotal">0</span>
+        </div>
+      </div>
+
+      <!-- LOG LIST CARD -->
+      <div class="card">
+        <div class="card-micro" style="margin-bottom:10px">entry log</div>
+        <div class="log-list" id="logList">
+          <div class="empty-log">NO ENTRIES YET</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <span>PULSE — DATA STORED LOCALLY</span>
+    <span id="footerInfo">—</span>
+  </footer>
+
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────
+const STORE = 'pulse_v1';
+let viewDate  = todayKey();
+let selScore  = null;
+let chart     = null;
+
+// ─────────────────────────────────────────
+//  STORAGE
+// ─────────────────────────────────────────
+function loadAll()       { try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; } }
+function saveAll(d)      { localStorage.setItem(STORE, JSON.stringify(d)); }
+function getDay(k)       { return loadAll()[k] || {}; }
+function setHour(k,h,s)  { const a=loadAll(); (a[k]=a[k]||{})[h]=s; saveAll(a); }
+function delHour(k,h)    { const a=loadAll(); if(a[k]){delete a[k][h]; if(!Object.keys(a[k]).length) delete a[k];} saveAll(a); }
+
+// ─────────────────────────────────────────
+//  DATE HELPERS
+// ─────────────────────────────────────────
+function todayKey() { return new Date().toISOString().slice(0,10); }
+function fmtHeader(k) {
+  const d = new Date(k+'T00:00:00');
+  return d.toLocaleDateString('en-IN',{weekday:'short',month:'short',day:'2-digit',year:'numeric'}).toUpperCase();
+}
+function shiftDay(delta) {
+  const d = new Date(viewDate+'T00:00:00');
+  d.setDate(d.getDate()+delta);
+  const nk = d.toISOString().slice(0,10);
+  if (nk > todayKey()) return;
+  viewDate = nk;
+  renderAll();
+}
+function goToday() { viewDate = todayKey(); renderAll(); }
+
+// ─────────────────────────────────────────
+//  CLOCK
+// ─────────────────────────────────────────
+function tickClock() {
+  const now = new Date();
+  document.getElementById('headerDate').textContent = fmtHeader(todayKey());
+  document.getElementById('headerTime').textContent =
+    now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).toUpperCase();
+}
+
+// ─────────────────────────────────────────
+//  HOUR SELECT
+// ─────────────────────────────────────────
+function buildHourSel() {
+  const sel = document.getElementById('hourSel');
+  const cur = new Date().getHours();
+  const isToday = viewDate === todayKey();
+  sel.innerHTML = '';
+  for (let h=0; h<24; h++) {
+    const hh = String(h).padStart(2,'0');
+    const opt = document.createElement('option');
+    opt.value = hh;
+    opt.textContent = `${hh}:00 – ${hh}:59` + (isToday && h===cur ? '  ← NOW' : '');
+    if (isToday && h===cur) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  syncHourDisplay();
+}
+function onHourChange() { syncHourDisplay(); }
+function syncHourDisplay() {
+  document.getElementById('hourDisplay').textContent =
+    document.getElementById('hourSel').value + ':00';
+}
+
+// ─────────────────────────────────────────
+//  SCORE BUTTONS
+// ─────────────────────────────────────────
+function buildScoreBtns() {
+  const g = document.getElementById('scoreGrid');
+  g.innerHTML = '';
+  for (let s=0; s<=5; s++) {
+    const b = document.createElement('button');
+    b.className='score-btn'; b.textContent=s; b.dataset.s=s;
+    b.onclick = () => pickScore(s);
+    g.appendChild(b);
+  }
+}
+function pickScore(s) {
+  selScore = s;
+  document.querySelectorAll('.score-btn').forEach(b =>
+    b.classList.toggle('sel', +b.dataset.s === s));
+}
+
+// ─────────────────────────────────────────
+//  LOG
+// ─────────────────────────────────────────
+function logEntry() {
+  if (selScore === null) { toast('SELECT A SCORE (0–5) FIRST'); return; }
+  const h = document.getElementById('hourSel').value;
+  setHour(viewDate, h, selScore);
+  toast(`LOGGED ${h}:00  →  SCORE ${selScore}`);
+  flashBtn();
+  renderAll();
+}
+function flashBtn() {
+  const b = document.getElementById('logBtn');
+  b.textContent = '✓ LOGGED'; b.classList.add('ok');
+  setTimeout(() => { b.textContent='LOG ENTRY'; b.classList.remove('ok'); }, 1300);
+}
+function removeEntry(h) {
+  delHour(viewDate, h);
+  toast(`REMOVED ${h}:00`);
+  renderAll();
+}
+
+// ─────────────────────────────────────────
+//  CHART
+// ─────────────────────────────────────────
+function initChart() {
+  const ctx = document.getElementById('chart').getContext('2d');
+  const labels = Array.from({length:24},(_,i)=>`${String(i).padStart(2,'0')}h`);
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Progress',
+        data: Array(24).fill(null),
+        backgroundColor: Array(24).fill('rgba(255,255,255,0.03)'),
+        borderColor:     Array(24).fill('rgba(255,255,255,0.07)'),
+        borderWidth: 1,
+        borderRadius: 3,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 450, easing: 'easeInOutQuart' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1a1a',
+          borderColor: 'rgba(245,158,11,0.4)',
+          borderWidth: 1,
+          titleColor: '#f59e0b',
+          bodyColor: '#c8c8c8',
+          titleFont: { family:"'JetBrains Mono',monospace", size:11 },
+          bodyFont:  { family:"'JetBrains Mono',monospace", size:12 },
+          callbacks: {
+            title: i => `HOUR ${i[0].label}`,
+            label: i => i.raw!==null ? `SCORE: ${i.raw} / 5` : 'NOT LOGGED'
+          }
+        }
+      },
+      scales: {
+        y: {
+          min:0, max:5,
+          ticks: { stepSize:1, color:'#4a4a4a', font:{family:"'JetBrains Mono',monospace",size:10} },
+          grid: { color:'rgba(255,255,255,0.04)' },
+          border: { color:'#252525' }
+        },
+        x: {
+          ticks: { color:'#4a4a4a', font:{family:"'JetBrains Mono',monospace",size:9}, maxRotation:0 },
+          grid: { display:false },
+          border: { color:'#252525' }
+        }
+      },
+      onClick(_, els) {
+        if (!els.length) return;
+        const idx = els[0].index;
+        const sel = document.getElementById('hourSel');
+        sel.value = String(idx).padStart(2,'0');
+        syncHourDisplay();
+      }
+    }
+  });
+}
+
+function refreshChart() {
+  const day = getDay(viewDate);
+  const isToday = viewDate === todayKey();
+  const curH = new Date().getHours();
+
+  const data = Array.from({length:24},(_,i) => {
+    const k = String(i).padStart(2,'0');
+    return day[k] !== undefined ? day[k] : null;
+  });
+
+  const bg = data.map((v,i) => {
+    if (v===null) return isToday&&i===curH ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.03)';
+    return `rgba(245,158,11,${0.28+(v/5)*0.72})`;
+  });
+  const bc = data.map((v,i) => {
+    if (v===null) return isToday&&i===curH ? 'rgba(245,158,11,0.45)' : 'rgba(255,255,255,0.07)';
+    return 'rgba(245,158,11,0.9)';
+  });
+
+  chart.data.datasets[0].data = data;
+  chart.data.datasets[0].backgroundColor = bg;
+  chart.data.datasets[0].borderColor = bc;
+  chart.update();
+}
+
+// ─────────────────────────────────────────
+//  STATS
+// ─────────────────────────────────────────
+function refreshStats() {
+  const day = getDay(viewDate);
+  const entries = Object.entries(day);
+  if (!entries.length) {
+    ['sAvg','sPeak','sLogged','sTotal'].forEach(id => document.getElementById(id).textContent='—');
+    document.getElementById('sLogged').textContent='0';
+    document.getElementById('sTotal').textContent='0';
+    return;
+  }
+  const scores = entries.map(([,v])=>v);
+  const avg = (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1);
+  const max = Math.max(...scores);
+  const peak = entries.find(([,v])=>v===max)?.[0];
+  const total = scores.reduce((a,b)=>a+b,0);
+  document.getElementById('sAvg').textContent    = avg;
+  document.getElementById('sPeak').textContent   = `${peak}:00 (${max})`;
+  document.getElementById('sLogged').textContent = entries.length;
+  document.getElementById('sTotal').textContent  = total;
+}
+
+// ─────────────────────────────────────────
+//  LOG LIST
+// ─────────────────────────────────────────
+function refreshLogList() {
+  const day = getDay(viewDate);
+  const list = document.getElementById('logList');
+  const entries = Object.entries(day).sort((a,b)=>a[0].localeCompare(b[0]));
+  if (!entries.length) {
+    list.innerHTML='<div class="empty-log">NO ENTRIES YET</div>'; return;
+  }
+  list.innerHTML = entries.map(([h,s])=>`
+    <div class="log-entry">
+      <span class="log-hour">${h}:00</span>
+      <div class="log-bar"><div class="log-bar-fill" style="width:${(s/5)*100}%"></div></div>
+      <span class="log-score">${s}</span>
+      <button class="del-btn" onclick="removeEntry('${h}')" title="Remove">✕</button>
+    </div>
+  `).join('');
+}
+
+// ─────────────────────────────────────────
+//  NAV + FOOTER
+// ─────────────────────────────────────────
+function refreshNav() {
+  const isToday = viewDate === todayKey();
+  document.getElementById('navLabel').textContent =
+    isToday ? `TODAY  —  ${viewDate}` : viewDate;
+  document.getElementById('nextBtn').disabled = isToday;
+}
+
+function refreshFooter() {
+  const all = loadAll();
+  const days = Object.keys(all).length;
+  const entries = Object.values(all).reduce((s,d)=>s+Object.keys(d).length, 0);
+  document.getElementById('footerInfo').textContent =
+    `${days} DAY${days!==1?'S':''} TRACKED — ${entries} TOTAL ENTRIES`;
+}
+
+// ─────────────────────────────────────────
+//  TOAST
+// ─────────────────────────────────────────
+let _toastT;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ─────────────────────────────────────────
+//  RENDER ALL
+// ─────────────────────────────────────────
+function renderAll() {
+  buildHourSel();
+  refreshChart();
+  refreshStats();
+  refreshLogList();
+  refreshNav();
+  refreshFooter();
+}
+
+// ─────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────
+buildHourSel();
+buildScoreBtns();
+initChart();
+renderAll();
+tickClock();
+setInterval(tickClock, 1000);
+setInterval(() => { if (viewDate === todayKey()) buildHourSel(); }, 60000);
+</script>
+</body>
+</html>
