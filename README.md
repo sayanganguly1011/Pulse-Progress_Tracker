@@ -7,7 +7,6 @@ PULSE is a sleek, interactive web-based productivity tracker designed to help yo
 ## 🚀 Features
 
 * ⏱️ **Hourly Logging**
-  Assign scores from **-5 to +5** for each hour to reflect productivity.
 
 * 📈 **Dynamic Progress Visualization**
   Real-time charts showing daily momentum and performance trends.
@@ -48,34 +47,49 @@ PULSE is a sleek, interactive web-based productivity tracker designed to help yo
 
 ---
 
-## 📂 Project Structure
+## 📂 File Manifest
 
-```bash
-pulse/
-│── Pulse.html
-│── README.md
-```
+FILE MANIFEST
+─────────────
+✓ package.json              (root config)
+✓ package-lock.json         (root config)
+✓ vite.config.js            (root config)
+✓ .gitignore                (root config)
+✓ index.html                (minimal HTML entry)
+✓ src/main.js               (app initialization & wiring)
+✓ src/styles.js             (all CSS exported as string)
+✓ src/lib.js                (6 libraries: storage, state, dateUtils, statsEngine, chartEngine, constants)
+✓ src/components.js         (7 components: Header, DayNav, Chart, Input, Stats, LogList, Footer)
 
 ---
 
 ## ⚙️ Installation & Usage
 
-1. Clone the repository:
+1. Create a folder: mkdir pulse-tracker
+2. Move all 8 files into it, maintaining the folder structure:
+   pulse-tracker/
+   ├── package.json
+   ├── package-lock.json
+   ├── vite.config.js
+   ├── index.html
+   ├── .gitignore
+   └── src/
+       ├── main.js
+       ├── styles.js
+       ├── lib.js
+       └── components.js
 
-```bash
-git clone https://github.com/sayanganguly1011/Pulse-Progress_Tracker.git
-```
+3. Install dependencies:
+   cd pulse-tracker
+   npm install
 
-2. Open the project:
+4. Start dev server:
+   npm run dev
+   (Opens http://localhost:5173 automatically)
 
-```bash
-cd Pulse-Progress_Tracker
-```
-
-3. Run the app:
-
-* Open `pulse.html` in your browser
-
+5. Build for production:
+   npm run build
+   Output: dist/index.html (single optimized file)
 ---
 
 ## 📌 How It Works
