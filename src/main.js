@@ -1,162 +1,230 @@
 import { injectStyles } from './styles.js';
 import {
-  appState,
-  updateState,
-  subscribe,
-  getTodayKey,
-  shiftDate,
-  saveEntry,
-  deleteEntry,
-  getDay,
+  state,
+  getTodayStr,
+  setEntry,
+  delEntry,
+  updateEntryDetail,
+  loadAll,
+  loadTasks,
+  saveTasks,
+  saveAll,
+  genId,
+  TASK_COLORS,
 } from './lib.js';
-import { Header, DayNav, Chart, Input, Stats, LogList, Footer } from './components.js';
+import {
+  toast,
+  buildScoreBtns,
+  initChart,
+  updateHourDisplay,
+  changeHour,
+  refreshChart,
+  refreshStats,
+  refreshTaskList,
+  refreshTaskSel,
+  refreshLogGroups,
+  toggleGroup,
+  refreshWeekly,
+} from './components.js';
 
-// ─────────────────────────────────────────
-// STYLES
-// ─────────────────────────────────────────
 injectStyles();
 
-// ─────────────────────────────────────────
-// INIT APP SHELL
-// ─────────────────────────────────────────
-const app = document.getElementById('app');
-app.innerHTML = `
-  <div class="shell">
-    <header id="header"></header>
-    <nav id="dayNav"></nav>
-    <div class="main-grid">
-      <div class="card">
-        <div class="card-micro">hourly output</div>
-        <div class="card-heading">DAILY PROGRESS GRAPH</div>
-        <div class="chart-wrap"><canvas id="chartCanvas"></canvas></div>
-      </div>
-      <div class="right-panel">
-        <div id="input"></div>
-        <div id="stats"></div>
-        <div id="logList"></div>
-      </div>
-    </div>
-    <footer id="footer"></footer>
-  </div>
-  <div id="toast" class="toast"></div>
-`;
+// ─────────────────────────────────────────────────────────────────────────────
+//  RENDER LOOP
+// ─────────────────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────
-// CREATE COMPONENT INSTANCES
-// ─────────────────────────────────────────
-const header = new Header(document.getElementById('header'));
-const dayNav = new DayNav(document.getElementById('dayNav'));
-const chart = new Chart(document.getElementById('chartCanvas'));
-const input = new Input(document.getElementById('input'));
-const stats = new Stats(document.getElementById('stats'));
-const logList = new LogList(document.getElementById('logList'));
-const footer = new Footer(document.getElementById('footer'));
+function renderAll(dateChanged = false) {
+  if (dateChanged) {
+    document.getElementById('dateJump').value = state.viewDate;
+    document.getElementById('nextBtn').disabled = (state.viewDate === getTodayStr());
+    document.getElementById('headerDate').textContent = new Date(state.viewDate + 'T00:00:00')
+      .toLocaleDateString(undefined, {
+        weekday: 'short',
+        month:   'short',
+        day:     '2-digit',
+        year:    'numeric',
+      })
+      .toUpperCase();
+  }
 
-// ─────────────────────────────────────────
-// SUBSCRIBE ALL COMPONENTS TO STATE
-// ─────────────────────────────────────────
-subscribe(state => {
-  dayNav.render(state);
-  chart.render(state);
-  stats.render(state);
-  logList.render(state);
-  footer.render(state);
-});
+  updateHourDisplay();
+  refreshChart();
+  refreshStats();
+  refreshLogGroups();
+  refreshTaskList();
+  refreshTaskSel();
+  refreshWeekly(jumpToDate);
 
-// ─────────────────────────────────────────
-// GLOBAL EVENT HANDLERS
-// ─────────────────────────────────────────
+  const all = loadAll();
+  document.getElementById('footerInfo').textContent = `${Object.keys(all).length} DAYS ARCHIVED`;
+}
 
-// Navigate to previous day
-window.shiftDay = (delta) => {
-  const nk = shiftDate(appState.viewDate, delta);
-  if (nk > getTodayKey()) return;
-  updateState({ viewDate: nk });
-};
+// ─────────────────────────────────────────────────────────────────────────────
+//  DATE NAVIGATION
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Go to today
-window.goToday = () => {
-  updateState({ viewDate: getTodayKey() });
-};
-
-// Hour selection changed
-window.onHourChange = () => {
-  const sel = document.getElementById('hourSel');
-  document.getElementById('hourDisplay').textContent = sel.value + ':00';
-};
-
-// Pick a score button
-window.pickScore = (score) => {
-  updateState({ selectedScore: score });
-  document.querySelectorAll('.score-btn').forEach(btn => {
-    btn.classList.toggle('sel', parseInt(btn.dataset.score) === score);
-  });
-};
-
-// Log entry to storage
-window.logEntry = () => {
-  if (appState.selectedScore === null) {
-    toast('SELECT A SCORE (0–5) FIRST');
+function jumpToDate(val) {
+  if (!val) return;
+  if (val > getTodayStr()) {
+    toast('CANNOT TRACK THE FUTURE');
+    document.getElementById('dateJump').value = state.viewDate;
     return;
   }
-  const hour = document.getElementById('hourSel').value;
-  saveEntry(appState.viewDate, hour, appState.selectedScore);
-  toast(`LOGGED ${hour}:00 → SCORE ${appState.selectedScore}`);
-  flashBtn();
-  
-  // Update state to trigger re-renders
-  updateState({ allData: getDay(appState.viewDate) });
-};
-
-// Delete entry
-window.removeEntry = (hour) => {
-  deleteEntry(appState.viewDate, hour);
-  toast(`REMOVED ${hour}:00`);
-  updateState({ allData: getDay(appState.viewDate) });
-};
-
-// Chart hour selection event
-window.addEventListener('chartHourSelect', (e) => {
-  const hour = e.detail.hour;
-  const sel = document.getElementById('hourSel');
-  if (sel) {
-    sel.value = hour;
-    document.getElementById('hourDisplay').textContent = hour + ':00';
-  }
-});
-
-// ─────────────────────────────────────────
-// TOAST NOTIFICATION
-// ─────────────────────────────────────────
-let toastTimeout = null;
-function toast(msg) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => {
-    el.classList.remove('show');
-  }, 2200);
+  state.viewDate = val;
+  onDateChange();
 }
 
-// ─────────────────────────────────────────
-// BUTTON FLASH ANIMATION
-// ─────────────────────────────────────────
-function flashBtn() {
-  const btn = document.getElementById('logBtn');
-  btn.textContent = '✓ LOGGED';
-  btn.classList.add('ok');
-  setTimeout(() => {
-    btn.textContent = 'LOG ENTRY';
-    btn.classList.remove('ok');
-  }, 1300);
+function shiftDay(delta) {
+  const d = new Date(state.viewDate + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  const nk = d.toISOString().slice(0, 10);
+  if (nk > getTodayStr()) return;
+  state.viewDate = nk;
+  onDateChange();
 }
 
-// ─────────────────────────────────────────
-// PERIODIC UPDATES
-// ─────────────────────────────────────────
-setInterval(() => {
-  if (appState.viewDate === getTodayKey()) {
-    input.render();
+function goToday() {
+  state.viewDate = getTodayStr();
+  onDateChange();
+}
+
+function onDateChange() {
+  state.selHour = (state.viewDate === getTodayStr()) ? new Date().getHours() : 0;
+  renderAll(true);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  LOG ENTRY
+// ─────────────────────────────────────────────────────────────────────────────
+
+function logEntry() {
+  if (state.selScore === null) { toast('SELECT A SCORE FIRST'); return; }
+  const h      = String(state.selHour).padStart(2, '0');
+  const detail = document.getElementById('detailInput').value.trim();
+  const taskId = document.getElementById('taskSel').value || null;
+
+  setEntry(state.viewDate, h, state.selScore, detail, taskId);
+  toast(`LOGGED  ${h}:00  @  ${state.selScore > 0 ? '+' : ''}${state.selScore}`);
+  document.getElementById('detailInput').value = '';
+  renderAll();
+}
+
+function removeEntry(h) {
+  delEntry(state.viewDate, h);
+  renderAll();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  TASK MANAGEMENT
+// ─────────────────────────────────────────────────────────────────────────────
+
+function addTask() {
+  const input = document.getElementById('newTaskInput');
+  const name  = input.value.trim();
+  if (!name) { toast('ENTER A TASK NAME'); input.focus(); return; }
+
+  const tasks    = loadTasks();
+  const colorIdx = Object.keys(tasks).length % TASK_COLORS.length;
+  const id       = genId();
+
+  tasks[id] = { name, color: TASK_COLORS[colorIdx] };
+  saveTasks(tasks);
+  input.value = '';
+  refreshTaskList();
+  refreshTaskSel();
+  toast('TASK ADDED: ' + name.toUpperCase());
+}
+
+function deleteTask(id) {
+  const tasks = loadTasks();
+  const name  = tasks[id]?.name || '';
+  delete tasks[id];
+  saveTasks(tasks);
+
+  const all = loadAll();
+  for (const day of Object.values(all)) {
+    if (typeof day !== 'object') continue;
+    for (const entry of Object.values(day)) {
+      if (entry?.taskId === id) entry.taskId = null;
+    }
   }
-}, 60000);
+  saveAll(all);
+
+  renderAll();
+  toast('TASK REMOVED: ' + name.toUpperCase());
+}
+
+function focusTaskManager() {
+  document.getElementById('taskManagerCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => document.getElementById('newTaskInput').focus(), 400);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  LIVE CLOCK
+// ─────────────────────────────────────────────────────────────────────────────
+
+function tick() {
+  document.getElementById('headerTime').textContent =
+    new Date().toLocaleTimeString(undefined, { hour12: true }).toUpperCase();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  EVENT LISTENERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function setupEventListeners() {
+  // ── Static navigation ────────────────────────────────────────────────────
+  document.getElementById('prevBtn').addEventListener('click', () => shiftDay(-1));
+  document.getElementById('nextBtn').addEventListener('click', () => shiftDay(1));
+  document.getElementById('todayBtn').addEventListener('click', goToday);
+  document.getElementById('dateJump').addEventListener('change', e => jumpToDate(e.target.value));
+
+  // ── Hour navigator ───────────────────────────────────────────────────────
+  document.getElementById('prevHourBtn').addEventListener('click', () => changeHour(-1));
+  document.getElementById('nextHourBtn').addEventListener('click', () => changeHour(1));
+
+  // ── Log entry ────────────────────────────────────────────────────────────
+  document.getElementById('logEntryBtn').addEventListener('click', logEntry);
+
+  // ── Task manager ─────────────────────────────────────────────────────────
+  document.getElementById('addTaskBtn').addEventListener('click', addTask);
+  document.getElementById('newTaskFocusBtn').addEventListener('click', focusTaskManager);
+  document.getElementById('newTaskInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addTask();
+  });
+
+  // ── Event delegation — log groups ────────────────────────────────────────
+  // Handles: toggle group collapse, delete entry
+  document.getElementById('logGroups').addEventListener('click', e => {
+    // Delete entry button
+    const delBtn = e.target.closest('.entry-del');
+    if (delBtn) { removeEntry(delBtn.dataset.hour); return; }
+
+    // Group header toggle (guard against clicks inside .group-entries)
+    const header = e.target.closest('.group-header');
+    if (header) toggleGroup(header.dataset.group);
+  });
+
+  // Handles: update entry detail on blur/change
+  document.getElementById('logGroups').addEventListener('change', e => {
+    const field = e.target.closest('.entry-detail-field');
+    if (field) updateEntryDetail(field.dataset.date, field.dataset.hour, field.value);
+  });
+
+  // ── Event delegation — task list ─────────────────────────────────────────
+  document.getElementById('taskList').addEventListener('click', e => {
+    const delBtn = e.target.closest('.task-del');
+    if (delBtn) deleteTask(delBtn.dataset.id);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────────────────────────────────────────
+
+setupEventListeners();
+buildScoreBtns();
+initChart();
+renderAll(true);
+setInterval(tick, 1000);
+tick();

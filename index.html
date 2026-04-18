@@ -4,10 +4,158 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PULSE — Progress Tracker</title>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;600;700&display=swap"
+    rel="stylesheet"
+  >
 </head>
 <body>
-  <div id="app"></div>
-  <script type="module" src="/src/main.js"></script>
+
+<div class="shell">
+
+  <!-- ── HEADER ─────────────────────────────────────────────────────────── -->
+  <header>
+    <div>
+      <div class="logo">PULSE</div>
+      <div class="logo-sub">// DATA VELOCITY TRACKER</div>
+    </div>
+    <div class="header-right">
+      <div class="date-big" id="headerDate">—</div>
+      <div class="time-live" id="headerTime">—</div>
+    </div>
+  </header>
+
+  <!-- ── DAY NAV ────────────────────────────────────────────────────────── -->
+  <div class="day-nav">
+    <button class="nav-btn"            id="prevBtn">◀ PREV</button>
+    <input  type="date" class="nav-date-input" id="dateJump">
+    <button class="nav-btn"            id="nextBtn">NEXT ▶</button>
+    <button class="nav-btn today-btn"  id="todayBtn">TODAY</button>
+  </div>
+
+  <!-- ── MAIN GRID ──────────────────────────────────────────────────────── -->
+  <div class="main-grid">
+
+    <!-- Chart panel -->
+    <div class="card">
+      <div class="card-micro">hourly output — click bar to select hour</div>
+      <div class="card-heading">DAILY PROGRESS GRAPH</div>
+      <div class="chart-wrap">
+        <canvas id="chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div class="right-panel">
+
+      <!-- Log entry card -->
+      <div class="card">
+        <div class="card-micro">log entry</div>
+
+        <!-- Hour navigator -->
+        <div class="hour-nav">
+          <button class="hour-arrow" id="prevHourBtn">◀</button>
+          <div class="hour-center">
+            <div class="hour-big"   id="hourDisplay">00:00</div>
+            <div class="hour-label" id="hourNowTag">—</div>
+          </div>
+          <button class="hour-arrow" id="nextHourBtn">▶</button>
+        </div>
+
+        <!-- Score grid -->
+        <div class="field-label">score &nbsp;-5 — +5</div>
+        <div class="score-section">
+          <div class="score-row neg-row" id="negScoreRow"></div>
+          <div class="score-row pos-row" id="posScoreRow"></div>
+        </div>
+
+        <!-- Detail input -->
+        <div class="field-label">task details (optional)</div>
+        <input
+          type="text"
+          class="text-input"
+          id="detailInput"
+          placeholder="what did you work on..."
+        >
+
+        <!-- Task assignment -->
+        <div class="field-label">assign to task</div>
+        <div class="task-assign-row">
+          <select class="task-sel" id="taskSel"></select>
+          <button class="new-task-btn" id="newTaskFocusBtn">+ NEW</button>
+        </div>
+
+        <button class="log-btn" id="logEntryBtn">LOG ENTRY</button>
+      </div>
+
+      <!-- Stats card -->
+      <div class="card">
+        <div class="card-micro">daily summary</div>
+        <div class="stat-row">
+          <span class="stat-name">Efficiency</span>
+          <span class="stat-val" id="sPct">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Avg Score</span>
+          <span class="stat-val" id="sAvg">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Net Points</span>
+          <span class="stat-val" id="sTotal">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Logged Hrs</span>
+          <span class="stat-val" id="sHours">0</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── TASK MANAGER ────────────────────────────────────────────────────── -->
+  <div class="card" id="taskManagerCard">
+    <div class="card-micro">task groups</div>
+    <div class="card-heading">TASK MANAGER</div>
+    <div class="task-add-row">
+      <input
+        type="text"
+        class="task-add-input"
+        id="newTaskInput"
+        placeholder="new task name..."
+      >
+      <button class="task-add-btn" id="addTaskBtn">+ ADD TASK</button>
+    </div>
+    <div class="task-list" id="taskList">
+      <span style="color:var(--text-dim); font-size:11px;">NO TASKS YET — ADD ONE ABOVE</span>
+    </div>
+  </div>
+
+  <!-- ── WEEKLY VELOCITY ────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-micro">weekly velocity</div>
+    <div class="card-heading">7-DAY PERFORMANCE HISTORY</div>
+    <div class="weekly-grid" id="weeklyGrid"></div>
+  </div>
+
+  <!-- ── ACTIVITY LOG ───────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-micro">activity log — grouped by task</div>
+    <div class="card-heading" style="margin-bottom:12px;">ENTRY LOG</div>
+    <div class="log-groups" id="logGroups"></div>
+  </div>
+
+  <footer>
+    <span>PULSE</span>
+    <span id="footerInfo">—</span>
+  </footer>
+
+</div>
+
+<!-- Toast notification -->
+<div class="toast" id="toast"></div>
+
+<!-- Entry point -->
+<script type="module" src="/src/main.js"></script>
+
 </body>
 </html>

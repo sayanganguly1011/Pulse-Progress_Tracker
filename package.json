@@ -1,17 +1,21 @@
 {
-  "name": "pulse-tracker",
+  "name": "pulse",
   "version": "1.0.0",
-  "description": "Local daily progress tracker with hourly scoring",
+  "description": "PULSE — Data Velocity Tracker. Log and visualise hourly productivity scores.",
+  "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev":     "vite",
+    "build":   "vite build",
     "preview": "vite preview"
-  },
-  "devDependencies": {
-    "vite": "^5.0.0"
   },
   "dependencies": {
     "chart.js": "^4.4.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
