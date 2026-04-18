@@ -47,37 +47,21 @@ PULSE is a sleek, interactive web-based productivity tracker designed to help yo
 
 ---
 
-## 📂 File Manifest
-
-FILE MANIFEST
-─────────────
-✓ package.json              (root config)
-✓ package-lock.json         (root config)
-✓ vite.config.js            (root config)
-✓ .gitignore                (root config)
-✓ index.html                (minimal HTML entry)
-✓ src/main.js               (app initialization & wiring)
-✓ src/styles.js             (all CSS exported as string)
-✓ src/lib.js                (6 libraries: storage, state, dateUtils, statsEngine, chartEngine, constants)
-✓ src/components.js         (7 components: Header, DayNav, Chart, Input, Stats, LogList, Footer)
-
----
-
 ## ⚙️ Installation & Usage
 
 1. Create a folder: mkdir pulse-tracker
-2. Move all 8 files into it, maintaining the folder structure:
-   pulse-tracker/
-   ├── package.json
-   ├── package-lock.json
-   ├── vite.config.js
-   ├── index.html
-   ├── .gitignore
-   └── src/
-       ├── main.js
-       ├── styles.js
-       ├── lib.js
-       └── components.js
+2. Move all 9 files into it, maintaining the folder structure:
+PULSE-PROGRESS-TRACKER/
+├── src/
+│   ├── components.js       # UI Components (Header, Chart, Stats, etc.)
+│   ├── lib.js              # Core Logic (Storage, Stats Engine, Chart Engine)
+│   ├── main.js             # App initialization & entry point
+│   └── styles.js           # Global styles exported as JS strings
+├── index.html              # Minimal HTML entry point
+├── vite.config.js          # Vite configuration settings
+├── package.json            # Project dependencies & scripts
+├── package-lock.json       # Locked dependency versions
+└── .gitignore              # Files excluded from Git (node_modules)
 
 3. Install dependencies:
    cd pulse-tracker
