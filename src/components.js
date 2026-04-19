@@ -9,13 +9,15 @@ import {
   effPct,
   effClass,
   signStr,
+  escapeHtml,
 } from './lib.js';
 
 // ── TOAST ─────────────────────────────────────────────────────────────────────
 
-export function toast(message) {
+export function toast(message, isError = false) {
   const el = document.getElementById('toast');
   el.textContent = message;
+  el.classList.toggle('error', isError);
   el.classList.add('show');
   clearTimeout(el._tid);
   el._tid = setTimeout(() => el.classList.remove('show'), 2200);
@@ -23,22 +25,33 @@ export function toast(message) {
 
 // ── HOUR NAVIGATOR ────────────────────────────────────────────────────────────
 
-export function updateHourDisplay() {
-  const hh  = String(state.selHour).padStart(2, '0');
-  const now = new Date().getHours();
-
-  document.getElementById('hourDisplay').textContent = `${hh}:00`;
-  document.getElementById('hourNowTag').textContent  =
-    (state.viewDate === getTodayStr() && state.selHour === now)
-      ? '← CURRENT HOUR'
-      : '';
-  document.getElementById('prevHourBtn').disabled = state.selHour === 0;
-  document.getElementById('nextHourBtn').disabled = state.selHour === 23;
+export function initHourDropdown() {
+  const sel = document.getElementById('hourSelect');
+  sel.innerHTML = Array.from({ length: 24 }, (_, i) => {
+    const h = String(i).padStart(2, '0') + ':00';
+    return `<option value="${i}">${h}</option>`;
+  }).join('');
 }
 
-export function changeHour(delta) {
-  state.selHour = Math.max(0, Math.min(23, state.selHour + delta));
+export function updateHourDisplay() {
+  const now = new Date().getHours();
+  document.getElementById('hourSelect').value = state.selHour;
+  document.getElementById('hourNowTag').textContent =
+    (state.viewDate === getTodayStr() && state.selHour === now)
+      ? '← CURRENT SYSTEM TIME'
+      : '';
+}
+
+export function adjustHour(delta) {
+  state.selHour = (state.selHour + delta + 24) % 24;
   updateHourDisplay();
+  toast(`HOUR: ${String(state.selHour).padStart(2, '0')}:00`);
+}
+
+export function jumpHour(val) {
+  state.selHour = parseInt(val, 10);
+  updateHourDisplay();
+  toast(`HOUR: ${String(state.selHour).padStart(2, '0')}:00`);
 }
 
 // ── SCORE BUTTONS ─────────────────────────────────────────────────
@@ -51,11 +64,8 @@ export function buildScoreBtns() {
 
   for (let s = -5; s <= 5; s++) {
     const btn  = document.createElement('button');
-    const sign = s > 0 ? '+' : '';
-
     btn.className   = 'score-btn';
-    btn.textContent = sign + s;
-    btn.dataset.s   = s;
+    btn.textContent = (s > 0 ? '+' : '') + s;
 
     if (s < 0)        btn.classList.add('neg-btn');
     else if (s === 0) btn.classList.add('zero-btn');
@@ -79,10 +89,34 @@ export function initChart() {
   const ctx = document.getElementById('chart').getContext('2d');
 
   state.chart = new Chart(ctx, {
-    type: 'bar',
     data: {
-      labels:   Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}h`),
-      datasets: [{ data: Array(24).fill(null), borderRadius: 2 }],
+      labels: Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}h`),
+      datasets: [
+        {
+          // Momentum line overlay
+          type:                'line',
+          label:               'Momentum',
+          data:                Array(24).fill(null),
+          borderColor:         'rgba(245, 158, 11, 1)',
+          borderWidth:         3,
+          tension:             0.35,
+          pointRadius:         5,
+          pointBackgroundColor: '#f59e0b',
+          pointBorderColor:    '#080808',
+          pointBorderWidth:    2,
+          spanGaps:            true,
+          order:               1,
+        },
+        {
+          // Score bars
+          type:         'bar',
+          label:        'Score',
+          data:         Array(24).fill(null),
+          borderRadius: 3,
+          base:         0,
+          order:        2,
+        },
+      ],
     },
     options: {
       responsive:          true,
@@ -92,7 +126,10 @@ export function initChart() {
         y: {
           min:  -5,
           max:   5,
-          grid:  { color: '#1a1a1a' },
+          grid: {
+            color:     c => c.tick.value === 0 ? 'rgba(245, 158, 11, 0.4)' : '#1a1a1a',
+            lineWidth: c => c.tick.value === 0 ? 2 : 1,
+          },
           ticks: {
             color:    '#444',
             callback: v => (v > 0 ? '+' : '') + v,
@@ -100,15 +137,13 @@ export function initChart() {
           },
         },
         x: {
+          position: { y: 0 },
           grid:  { display: false },
-          ticks: { color: '#444', font: { size: 10 } },
+          ticks: { color: '#888', font: { size: 9, weight: '600' }, padding: 5 },
         },
       },
       onClick: (_, els) => {
-        if (!els.length) return;
-        state.selHour = els[0].index;
-        updateHourDisplay();
-        toast(`HOUR SELECTED: ${String(state.selHour).padStart(2, '00')}:00`);
+        if (els.length) jumpHour(els[0].index);
       },
     },
   });
@@ -117,15 +152,20 @@ export function initChart() {
 export function refreshChart() {
   const day    = getDay(state.viewDate);
   const scores = Array.from({ length: 24 }, (_, i) => {
-    const h = String(i).padStart(2, '0');
+    const h = String(i).padStart(2, '00');
     return day[h] !== undefined ? day[h].score : null;
   });
 
-  state.chart.data.datasets[0].data            = scores;
-  state.chart.data.datasets[0].backgroundColor = scores.map(v =>
-    v === null ? '#141414' : scoreColor(v),
-  );
-  state.chart.update('none');
+  // Bar colours: red tint for negative, green tint for positive
+  state.chart.data.datasets[1].data            = scores;
+  state.chart.data.datasets[1].backgroundColor = scores.map(v => {
+    if (v === null) return 'rgba(20, 20, 20, 0.5)';
+    return v < 0 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(34, 197, 94, 0.4)';
+  });
+
+  // Momentum line uses the same score values
+  state.chart.data.datasets[0].data = scores;
+  state.chart.update({ duration: 0 });
 }
 
 // ── STATS CARD ────────────────────────────────────────────────────────────────
@@ -147,9 +187,9 @@ export function refreshStats() {
   set('sAvg',   avg !== null ? signStr(avg, 1)      : '—', effClass(avg !== null ? avg * 20 : null));
   set('sTotal', entries.length ? signStr(total)     : '—', effClass(total));
 
-  const sHours      = document.getElementById('sHours');
-  sHours.textContent = entries.length;
-  sHours.className   = 'stat-val';
+  const el      = document.getElementById('sHours');
+  el.textContent = entries.length;
+  el.className   = 'stat-val';
 }
 
 // ── TASK LIST ( manager panel ) ───────────────────────────────────────────────
@@ -160,20 +200,19 @@ export function refreshTaskList() {
   const entries = Object.entries(tasks);
 
   if (!entries.length) {
-    list.innerHTML = '<span style="color:var(--text-dim); font-size:11px;">NO TASKS YET — ADD ONE ABOVE</span>';
+    list.innerHTML = '<span style="color:var(--text-dim); font-size:11px;">NO TASKS YET</span>';
     return;
   }
 
   list.innerHTML = entries.map(([id, t]) => `
     <div class="task-pill">
       <div class="task-dot" style="background:${t.color}"></div>
-      <span class="task-pill-name">${t.name}</span>
+      <span class="task-pill-name">${escapeHtml(t.name)}</span>
       <button class="task-del" data-id="${id}">✕</button>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
-// ── TASK SELECT ( log entry card ) ────────────────────────────────────────────
+// ── TASK SELECT ────────────────────────────────────────────
 
 export function refreshTaskSel() {
   const tasks = loadTasks();
@@ -183,96 +222,102 @@ export function refreshTaskSel() {
   sel.innerHTML =
     '<option value="">— unassigned —</option>' +
     Object.entries(tasks)
-      .map(([id, t]) => `<option value="${id}" ${id === cur ? 'selected' : ''}>${t.name}</option>`)
+      .map(([id, t]) =>
+        `<option value="${id}" ${id === cur ? 'selected' : ''}>${escapeHtml(t.name)}</option>`)
       .join('');
 }
 
-// ── ACTIVITY LOG ( grouped by task ) ─────────────────────────────────────────
+// ── ACTIVITY LOG ──────────────────────────────────────────────────────────────
 
-export function refreshLogGroups() {
+export function renderLogGroups() {
   const day     = getDay(state.viewDate);
   const tasks   = loadTasks();
   const groups  = document.getElementById('logGroups');
-  const entries = Object.entries(day).sort((a, b) => a[0].localeCompare(b[0]));
+
+  // Sort entries chronologically by hour
+  const entries = Object.entries(day).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
 
   if (!entries.length) {
-    groups.innerHTML = '<div style="color:var(--text-dim); padding:10px 0; font-size:11px; letter-spacing:1px;">NO DATA LOGGED FOR THIS DATE</div>';
+    groups.innerHTML = '<div style="color:var(--text-dim); padding:10px 0;">NO DATA</div>';
     return;
   }
 
-  // Group entries by taskId
-  const grouped = {};
-  for (const [h, e] of entries) {
-    const key = e.taskId || '__unassigned__';
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push([h, e]);
-  }
+  const taskOptions = Object.entries(tasks)
+    .map(([tid, tt]) => `<option value="${tid}">${escapeHtml(tt.name)}</option>`)
+    .join('');
 
-  // Defined tasks
-  const orderedKeys = [
-    ...Object.keys(tasks).filter(id => grouped[id]),
-    ...(grouped['__unassigned__'] ? ['__unassigned__'] : []),
-  ];
-
-  groups.innerHTML = orderedKeys.map(gKey => {
-    const isUnassigned = gKey === '__unassigned__';
-    const task         = isUnassigned ? null : tasks[gKey];
-    const groupEntries = grouped[gKey];
-    const groupName    = isUnassigned ? 'UNASSIGNED' : task.name.toUpperCase();
-    const color        = isUnassigned ? '#555' : task.color;
-    const isCollapsed  = state.collapsedGroups.has(gKey);
-    const gEff         = effPct(groupEntries.map(([, e]) => e));
-    const gEffClass    = effClass(gEff);
-
-    const entriesHTML = groupEntries.map(([h, e]) => {
-      const col    = scoreColor(e.score);
-      const sign   = e.score > 0 ? '+' : '';
-      const mag    = Math.abs(e.score / 5) * 100;
-      const isNeg  = e.score < 0;
-
-      // Negative scores fill from right, positive from left
-      const barStyle = isNeg
-        ? `width:${mag}%; background:${col}; right:0; left:auto;`
-        : `width:${mag}%; background:${col}; left:0;`;
+  const entriesHTML = entries.map(([h, e]) => {
+    const t         = e.taskId ? tasks[e.taskId] : null;
+    const taskColor = t ? t.color : '#555';
+    const isU       = !e.taskId;
+    const barPct    = Math.abs(e.score / 5) * 100;
+    const barSide   = e.score < 0 ? 'right:0' : 'left:0';
+    const isSelected = state.selectedEntries.has(h);
 
       return `
-        <div class="log-entry">
+      <div
+        class="log-entry${isSelected ? ' selected' : ''}"
+        data-hour="${h}"
+      >
+        <input
+          type="checkbox"
+          class="entry-checkbox"
+          data-action="select"
+          data-hour="${h}"
+          ${isSelected ? 'checked' : ''}
+        >
+        <div
+          class="drag-handle"
+          draggable="true"
+          data-action="drag-handle"
+          data-hour="${h}"
+        >::::</div>
           <span class="log-hour">${h}:00</span>
+
+        <select
+          class="entry-task-mini"
+          data-action="assign-task"
+          data-hour="${h}"
+          style="color:${taskColor}; border-color:${taskColor}"
+        >
+          <option disabled>Assign to...</option>
+          <option value="__u__" ${isU ? 'selected' : ''}>Unassigned</option>
+          ${taskOptions.replace(
+            `value="${e.taskId}"`,
+            `value="${e.taskId}" selected`,
+          )}
+        </select>
+
           <div class="log-bar-wrap">
-            <div class="log-bar-fill" style="${barStyle}"></div>
+          <div class="log-bar-fill" style="width:${barPct}%; background:${scoreColor(e.score)}; ${barSide}"></div>
           </div>
-          <span class="log-score" style="color:${col}">${sign}${e.score}</span>
+        <span class="log-score" style="color:${scoreColor(e.score)}">${e.score > 0 ? '+' : ''}${e.score}</span>
+
           <input
             class="entry-detail-field"
-            value="${(e.detail || '').replace(/"/g, '&quot;')}"
             placeholder="add details..."
+          value="${escapeHtml(e.detail)}"
+          data-action="update-detail"
             data-date="${state.viewDate}"
             data-hour="${h}"
           >
-          <button class="entry-del" data-hour="${h}">✕</button>
-        </div>`;
-    }).join('');
-
-    return `
-      <div class="log-group">
-        <div class="group-header" data-group="${gKey}" style="border-left-color:${color}">
-          <span class="group-arrow">${isCollapsed ? '▶' : '▼'}</span>
-          <span class="group-name" style="color:${color}">${groupName}</span>
-          <span class="group-meta">${groupEntries.length} ${groupEntries.length === 1 ? 'ENTRY' : 'ENTRIES'}</span>
-          <span class="group-eff ${gEffClass}">${gEff !== null ? signStr(gEff) + '%' : '—'}</span>
-        </div>
-        ${isCollapsed ? '' : `<div class="group-entries">${entriesHTML}</div>`}
+        <button class="entry-del" data-action="delete-entry" data-hour="${h}">✕</button>
       </div>`;
   }).join('');
+
+  groups.innerHTML = `<div class="group-entries">${entriesHTML}</div>`;
 }
 
-export function toggleGroup(gKey) {
-  if (state.collapsedGroups.has(gKey)) state.collapsedGroups.delete(gKey);
-  else state.collapsedGroups.add(gKey);
-  refreshLogGroups();
+export { renderLogGroups as refreshLogGroups };
+
+// ── TOOLBAR ( multi-select ) ──────────────────────────────────────────────────
+
+export function updateToolbar() {
+  const toolbar = document.getElementById('logToolbar');
+  toolbar.classList.toggle('hidden', state.selectedEntries.size === 0);
 }
 
-// ── WEEKLY VELOCITY ───────────────────────────────────────────────────────────
+// ── WEEKLY PROGRESS ───────────────────────────────────────────────────────────
 
 /**
  * @param {(key: string) => void} onDayClick  
@@ -286,24 +331,87 @@ export function refreshWeekly(onDayClick) {
   for (let i = 6; i >= 0; i--) {
     const d = new Date(end);
     d.setDate(d.getDate() - i);
-    const key    = d.toISOString().slice(0, 10);
+
+    const key    = d.getFullYear() + '-' +
+                   String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                   String(d.getDate()).padStart(2, '0');
     const dayRaw = allData[key] || {};
     const scores = Object.values(dayRaw).map(v =>
       typeof v === 'number' ? v : (v?.score ?? 0),
     );
-
     const eff   = scores.length
       ? Math.round((scores.reduce((a, b) => a + b, 0) / (scores.length * 5)) * 100)
       : null;
-    const label = eff !== null ? signStr(eff) + '%' : '—';
 
     const box = document.createElement('div');
     box.className = `week-day${key === state.viewDate ? ' active' : ''}`;
     box.innerHTML = `
       <div class="wd-label">${d.toLocaleDateString(undefined, { weekday: 'short' })}</div>
-      <div class="wd-pct ${effClass(eff)}">${label}</div>
+      <div class="wd-pct ${effClass(eff)}">${eff !== null ? signStr(eff) + '%' : '—'}</div>
       <div class="wd-date">${key.slice(5)}</div>`;
     box.addEventListener('click', () => onDayClick(key));
     grid.appendChild(box);
   }
+}
+
+// ── MULTILOG MODAL ────────────────────────────────────────────────────────────
+
+export function openMultilog() {
+  state.multilogSelectedHours.clear();
+  state.multilogScore = null;
+  document.getElementById('multilogDetail').value = '';
+  document.getElementById('multilogTaskSel').value = '';
+
+  // Build 24-hour grid
+  const hourGrid = document.getElementById('multilogHourGrid');
+  hourGrid.innerHTML = Array.from({ length: 24 }, (_, i) => {
+    const h = String(i).padStart(2, '00');
+    return `
+      <label class="hour-checkbox">
+        <input type="checkbox" data-modal-hour="${h}">
+        <span>${h}:00</span>
+      </label>`;
+  }).join('');
+
+  buildMultilogScoreBtns();
+  refreshMultilogTaskSel();
+  document.getElementById('multilogModal').classList.add('show');
+}
+
+export function closeMultilog() {
+  document.getElementById('multilogModal').classList.remove('show');
+  state.multilogSelectedHours.clear();
+  state.multilogScore = null;
+}
+
+export function buildMultilogScoreBtns() {
+  const negRow = document.getElementById('multilogNegScore');
+  const posRow = document.getElementById('multilogPosScore');
+  negRow.innerHTML = '';
+  posRow.innerHTML = '';
+
+  for (let s = -5; s <= 5; s++) {
+    const btn = document.createElement('button');
+    btn.className   = 'modal-score-btn';
+    btn.textContent = (s > 0 ? '+' : '') + s;
+
+    btn.addEventListener('click', () => {
+      state.multilogScore = s;
+      document.querySelectorAll('.modal-score-btn').forEach(b => b.classList.remove('sel'));
+      btn.classList.add('sel');
+    });
+
+    if (s < 0) negRow.appendChild(btn);
+    else       posRow.appendChild(btn);
+  }
+}
+
+export function refreshMultilogTaskSel() {
+  const tasks = loadTasks();
+  const sel   = document.getElementById('multilogTaskSel');
+  sel.innerHTML =
+    '<option value="">— unassigned —</option>' +
+    Object.entries(tasks)
+      .map(([id, t]) => `<option value="${id}">${escapeHtml(t.name)}</option>`)
+      .join('');
 }

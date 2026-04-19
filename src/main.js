@@ -2,31 +2,34 @@ import { injectStyles } from './styles.js';
 import {
   state,
   getTodayStr,
-  setEntry,
-  delEntry,
-  updateEntryDetail,
+  formatDisplayDate,
   loadAll,
+  saveAll,
+  getDay,
   loadTasks,
   saveTasks,
-  saveAll,
-  genId,
   TASK_COLORS,
 } from './lib.js';
 import {
   toast,
+  initHourDropdown,
   buildScoreBtns,
-  initChart,
+  adjustHour,
+  jumpHour,
   updateHourDisplay,
-  changeHour,
+  initChart,
   refreshChart,
   refreshStats,
   refreshTaskList,
   refreshTaskSel,
-  refreshLogGroups,
-  toggleGroup,
+  renderLogGroups,
+  updateToolbar,
   refreshWeekly,
+  openMultilog,
+  closeMultilog,
 } from './components.js';
 
+// ── INJECT STYLES ─────────────────────────────────────────────────────────────
 injectStyles();
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -34,23 +37,18 @@ injectStyles();
 // ─────────────────────────────────────────────────────────────────────────────
 
 function renderAll(dateChanged = false) {
+  const today = getTodayStr();
+
   if (dateChanged) {
-    document.getElementById('dateJump').value = state.viewDate;
-    document.getElementById('nextBtn').disabled = (state.viewDate === getTodayStr());
-    document.getElementById('headerDate').textContent = new Date(state.viewDate + 'T00:00:00')
-      .toLocaleDateString(undefined, {
-        weekday: 'short',
-        month:   'short',
-        day:     '2-digit',
-        year:    'numeric',
-      })
-      .toUpperCase();
+    document.getElementById('dateJump').value    = state.viewDate;
+    document.getElementById('headerDate').textContent = formatDisplayDate(state.viewDate);
   }
+  document.getElementById('nextBtn').disabled = (state.viewDate >= today);
 
   updateHourDisplay();
   refreshChart();
   refreshStats();
-  refreshLogGroups();
+  renderLogGroups();
   refreshTaskList();
   refreshTaskSel();
   refreshWeekly(jumpToDate);
@@ -77,7 +75,9 @@ function jumpToDate(val) {
 function shiftDay(delta) {
   const d = new Date(state.viewDate + 'T00:00:00');
   d.setDate(d.getDate() + delta);
-  const nk = d.toISOString().slice(0, 10);
+  const nk = d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
   if (nk > getTodayStr()) return;
   state.viewDate = nk;
   onDateChange();
@@ -90,11 +90,14 @@ function goToday() {
 
 function onDateChange() {
   state.selHour = (state.viewDate === getTodayStr()) ? new Date().getHours() : 0;
+  state.selScore = null;
+  document.querySelectorAll('.score-btn').forEach(b => b.classList.remove('sel'));
+  state.selectedEntries.clear();
   renderAll(true);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  LOG ENTRY
+//  ENTRY ACTIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
 function logEntry() {
@@ -102,16 +105,145 @@ function logEntry() {
   const h      = String(state.selHour).padStart(2, '0');
   const detail = document.getElementById('detailInput').value.trim();
   const taskId = document.getElementById('taskSel').value || null;
+  const all    = loadAll();
 
-  setEntry(state.viewDate, h, state.selScore, detail, taskId);
-  toast(`LOGGED  ${h}:00  @  ${state.selScore > 0 ? '+' : ''}${state.selScore}`);
-  document.getElementById('detailInput').value = '';
-  renderAll();
+  if (!all[state.viewDate]) all[state.viewDate] = {};
+  all[state.viewDate][h] = { score: state.selScore, detail: detail || '', taskId: taskId || null };
+
+  try {
+    saveAll(all);
+    toast(`LOGGED ${h}:00 @ ${state.selScore > 0 ? '+' : ''}${state.selScore}`);
+    document.getElementById('detailInput').value = '';
+    renderAll();
+  } catch {
+    toast('STORAGE FULL — Data not saved!', true);
+  }
 }
 
 function removeEntry(h) {
-  delEntry(state.viewDate, h);
-  renderAll();
+  const all = loadAll();
+  if (all[state.viewDate]) {
+    delete all[state.viewDate][h];
+    if (!Object.keys(all[state.viewDate]).length) delete all[state.viewDate];
+  }
+  state.selectedEntries.delete(h);
+  try {
+    saveAll(all);
+    renderAll();
+  } catch {
+    toast('STORAGE FULL — Could not remove entry!', true);
+  }
+}
+
+function updateEntryDetail(date, h, val) {
+  const all = loadAll();
+  if (all[date]?.[h]) {
+    all[date][h].detail = val;
+    try { saveAll(all); } catch { toast('STORAGE FULL', true); }
+  }
+}
+
+function clearHourSlot() {
+  const h   = String(state.selHour).padStart(2, '0');
+  const all = loadAll();
+  if (all[state.viewDate]?.[h]) {
+    delete all[state.viewDate][h];
+    if (!Object.keys(all[state.viewDate]).length) delete all[state.viewDate];
+    try {
+      saveAll(all);
+      toast(`CLEARED HOUR ${h}:00`);
+      renderAll();
+    } catch {
+      toast('STORAGE FULL', true);
+    }
+  } else {
+    toast('NO DATA IN THIS SLOT');
+  }
+}
+
+function clearFullDay() {
+  if (!confirm('Permanently delete all logs for this day?')) return;
+  const all = loadAll();
+  if (all[state.viewDate]) {
+    delete all[state.viewDate];
+    try {
+      saveAll(all);
+      toast('DAY LOGS PURGED');
+      renderAll();
+    } catch {
+      toast('STORAGE FULL', true);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  DRAG & DROP (entry → task)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function onEntryDragStart(e, h) {
+  state.draggedHour = h;
+  e.target.closest('.log-entry')?.classList.add('dragging');
+  e.dataTransfer.setData('text/plain', h);
+}
+
+function onEntryDragEnd(e) {
+  e.target.closest('.log-entry')?.classList.remove('dragging');
+  document.querySelectorAll('.log-group').forEach(g => g.classList.remove('drag-over'));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  TASK ASSIGNMENT (inline mini-select)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function moveEntryToTask(hour, targetTaskId) {
+  const all = loadAll();
+  if (all[state.viewDate]?.[hour]) {
+    all[state.viewDate][hour].taskId = targetTaskId === '__u__' ? null : targetTaskId;
+    try {
+      saveAll(all);
+      const tasks    = loadTasks();
+      const taskName = targetTaskId === '__u__'
+        ? 'UNASSIGNED'
+        : (tasks[targetTaskId]?.name?.toUpperCase() || 'TASK');
+      toast(`MOVED ${hour}:00 TO ${taskName}`);
+      renderAll();
+    } catch {
+      toast('STORAGE FULL', true);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  MULTI-SELECT
+// ─────────────────────────────────────────────────────────────────────────────
+
+function toggleEntrySelect(h) {
+  if (state.selectedEntries.has(h)) state.selectedEntries.delete(h);
+  else state.selectedEntries.add(h);
+  renderLogGroups();
+  updateToolbar();
+}
+
+function bulkDeleteSelected() {
+  if (state.selectedEntries.size === 0) { toast('NO ENTRIES SELECTED'); return; }
+  const count = state.selectedEntries.size;
+  if (!confirm(`Delete ${count} selected entr${count === 1 ? 'y' : 'ies'}?`)) return;
+
+  const all = loadAll();
+  state.selectedEntries.forEach(h => {
+    if (all[state.viewDate]) delete all[state.viewDate][h];
+  });
+  if (all[state.viewDate] && !Object.keys(all[state.viewDate]).length) {
+    delete all[state.viewDate];
+  }
+  try {
+    saveAll(all);
+    state.selectedEntries.clear();
+    toast(`DELETED ${count} ENTR${count === 1 ? 'Y' : 'IES'}`);
+    renderAll();
+  } catch {
+    toast('STORAGE FULL', true);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -121,25 +253,25 @@ function removeEntry(h) {
 function addTask() {
   const input = document.getElementById('newTaskInput');
   const name  = input.value.trim();
-  if (!name) { toast('ENTER A TASK NAME'); input.focus(); return; }
+  if (!name) return;
 
   const tasks    = loadTasks();
-  const colorIdx = Object.keys(tasks).length % TASK_COLORS.length;
-  const id       = genId();
+  const id       = Date.now().toString(36);
+  tasks[id]      = { name, color: TASK_COLORS[Object.keys(tasks).length % TASK_COLORS.length] };
 
-  tasks[id] = { name, color: TASK_COLORS[colorIdx] };
-  saveTasks(tasks);
-  input.value = '';
-  refreshTaskList();
-  refreshTaskSel();
-  toast('TASK ADDED: ' + name.toUpperCase());
+  try {
+    saveTasks(tasks);
+    input.value = '';
+    renderAll();
+  } catch {
+    toast('STORAGE FULL — Task not saved!', true);
+  }
 }
 
 function deleteTask(id) {
   const tasks = loadTasks();
-  const name  = tasks[id]?.name || '';
   delete tasks[id];
-  saveTasks(tasks);
+  try { saveTasks(tasks); } catch { toast('STORAGE FULL', true); return; }
 
   const all = loadAll();
   for (const day of Object.values(all)) {
@@ -148,15 +280,77 @@ function deleteTask(id) {
       if (entry?.taskId === id) entry.taskId = null;
     }
   }
-  saveAll(all);
-
-  renderAll();
-  toast('TASK REMOVED: ' + name.toUpperCase());
+  try {
+    saveAll(all);
+    renderAll();
+  } catch {
+    toast('STORAGE FULL', true);
+  }
 }
 
 function focusTaskManager() {
   document.getElementById('taskManagerCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
   setTimeout(() => document.getElementById('newTaskInput').focus(), 400);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  MULTILOG MODAL ACTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function multilogLogToSelected() {
+  if (state.multilogSelectedHours.size === 0) { toast('SELECT AT LEAST ONE HOUR'); return; }
+  if (state.multilogScore === null)            { toast('SELECT A SCORE FIRST');    return; }
+
+  const detail = document.getElementById('multilogDetail').value.trim();
+  const taskId = document.getElementById('multilogTaskSel').value || null;
+  const all    = loadAll();
+  if (!all[state.viewDate]) all[state.viewDate] = {};
+
+  state.multilogSelectedHours.forEach(h => {
+    all[state.viewDate][h] = { score: state.multilogScore, detail: detail || '', taskId };
+  });
+
+  try {
+    saveAll(all);
+    const count = state.multilogSelectedHours.size;
+    toast(`LOGGED TO ${count} HOUR${count === 1 ? '' : 'S'}`);
+    renderAll();
+  } catch {
+    toast('STORAGE FULL', true);
+  }
+}
+
+function multilogAutoFill(overwrite) {
+  if (state.multilogSelectedHours.size === 0) { toast('SELECT AT LEAST ONE HOUR'); return; }
+  if (state.multilogScore === null)            { toast('SELECT A SCORE FIRST');    return; }
+
+  const detail  = document.getElementById('multilogDetail').value.trim();
+  const taskId  = document.getElementById('multilogTaskSel').value || null;
+  const all     = loadAll();
+  if (!all[state.viewDate]) all[state.viewDate] = {};
+
+  const hours   = Array.from(state.multilogSelectedHours, h => parseInt(h));
+  const minHour = Math.min(...hours);
+  const maxHour = Math.max(...hours);
+  let filled    = 0;
+
+  for (let i = minHour; i <= maxHour; i++) {
+    const hStr    = String(i).padStart(2, '0');
+    const hasEntry = all[state.viewDate][hStr];
+    if (overwrite || !hasEntry) {
+      all[state.viewDate][hStr] = { score: state.multilogScore, detail: detail || '', taskId };
+      filled++;
+    }
+  }
+
+  try {
+    saveAll(all);
+    const mode = overwrite ? 'OVERWRITE' : 'EMPTY';
+    toast(`AUTOFILLED ${filled} HOUR${filled === 1 ? '' : 'S'} (${mode})`);
+    renderAll();
+  } catch {
+    toast('STORAGE FULL', true);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -173,48 +367,99 @@ function tick() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function setupEventListeners() {
-  // ── Static navigation ────────────────────────────────────────────────────
-  document.getElementById('prevBtn').addEventListener('click', () => shiftDay(-1));
-  document.getElementById('nextBtn').addEventListener('click', () => shiftDay(1));
+  // ── Day navigation ────────────────────────────────────────────────────────
+  document.getElementById('prevBtn').addEventListener('click',  () => shiftDay(-1));
+  document.getElementById('nextBtn').addEventListener('click',  () => shiftDay(1));
   document.getElementById('todayBtn').addEventListener('click', goToday);
   document.getElementById('dateJump').addEventListener('change', e => jumpToDate(e.target.value));
 
-  // ── Hour navigator ───────────────────────────────────────────────────────
-  document.getElementById('prevHourBtn').addEventListener('click', () => changeHour(-1));
-  document.getElementById('nextHourBtn').addEventListener('click', () => changeHour(1));
+  // ── Hour navigator ─────────────────────────────────────────────────────────
+  document.getElementById('prevHourCtrl').addEventListener('click', () => adjustHour(-1));
+  document.getElementById('nextHourCtrl').addEventListener('click', () => adjustHour(1));
+  document.getElementById('hourSelect').addEventListener('change',  e => jumpHour(e.target.value));
 
-  // ── Log entry ────────────────────────────────────────────────────────────
-  document.getElementById('logEntryBtn').addEventListener('click', logEntry);
+  // ── Log entry ──────────────────────────────────────────────────────────────
+  document.getElementById('logEntryBtn').addEventListener('click',    logEntry);
+  document.getElementById('clearHourBtn').addEventListener('click',   clearHourSlot);
+  document.getElementById('multilogOpenBtn').addEventListener('click', openMultilog);
 
-  // ── Task manager ─────────────────────────────────────────────────────────
-  document.getElementById('addTaskBtn').addEventListener('click', addTask);
+  // ── Task manager ───────────────────────────────────────────────────────────
+  document.getElementById('addTaskBtn').addEventListener('click',     addTask);
   document.getElementById('newTaskFocusBtn').addEventListener('click', focusTaskManager);
   document.getElementById('newTaskInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') addTask();
   });
 
-  // ── Event delegation — log groups ────────────────────────────────────────
-  // Handles: toggle group collapse, delete entry
-  document.getElementById('logGroups').addEventListener('click', e => {
-    // Delete entry button
-    const delBtn = e.target.closest('.entry-del');
-    if (delBtn) { removeEntry(delBtn.dataset.hour); return; }
+  // ── Bulk actions ───────────────────────────────────────────────────────────
+  document.getElementById('bulkDeleteBtn').addEventListener('click', bulkDeleteSelected);
+  document.getElementById('clearDayBtn').addEventListener('click',   clearFullDay);
 
-    // Group header toggle (guard against clicks inside .group-entries)
-    const header = e.target.closest('.group-header');
-    if (header) toggleGroup(header.dataset.group);
+  // ── Multilog modal buttons ─────────────────────────────────────────────────
+  document.getElementById('multilogLogBtn').addEventListener('click',          multilogLogToSelected);
+  document.getElementById('multilogAutoFillEmptyBtn').addEventListener('click', () => multilogAutoFill(false));
+  document.getElementById('multilogAutoFillAllBtn').addEventListener('click',   () => multilogAutoFill(true));
+  document.getElementById('multilogCloseBtn').addEventListener('click',         closeMultilog);
+
+  // ── Multilog hour checkboxes  ───────────────
+  document.getElementById('multilogHourGrid').addEventListener('change', e => {
+    const cb = e.target.closest('[data-modal-hour]');
+    if (!cb) return;
+    const h = cb.dataset.modalHour;
+    if (cb.checked) state.multilogSelectedHours.add(h);
+    else            state.multilogSelectedHours.delete(h);
   });
 
-  // Handles: update entry detail on blur/change
-  document.getElementById('logGroups').addEventListener('change', e => {
-    const field = e.target.closest('.entry-detail-field');
-    if (field) updateEntryDetail(field.dataset.date, field.dataset.hour, field.value);
+  // ── Log groups — event delegation ──────────────────────────────────────────
+  const logGroups = document.getElementById('logGroups');
+
+  logGroups.addEventListener('click', e => {
+    const entry = e.target.closest('.log-entry');
+    if (!entry) return;
+
+    const isInteractive = e.target.closest(
+      'input, select, button, .entry-detail-field, .entry-task-mini, .entry-del, .drag-handle',
+    );
+
+    const action = e.target.dataset.action || e.target.closest('[data-action]')?.dataset.action;
+
+    if (action === 'select' || (!isInteractive && entry)) {
+      toggleEntrySelect(entry.dataset.hour);
+    }
+    if (action === 'delete-entry') {
+      removeEntry(e.target.closest('[data-action]').dataset.hour);
+    }
   });
 
-  // ── Event delegation — task list ─────────────────────────────────────────
+  logGroups.addEventListener('change', e => {
+    const action = e.target.dataset.action;
+    if (action === 'select') {
+      toggleEntrySelect(e.target.dataset.hour);
+    }
+    if (action === 'update-detail') {
+      const f = e.target;
+      updateEntryDetail(f.dataset.date, f.dataset.hour, f.value);
+    }
+    if (action === 'assign-task') {
+      const sel = e.target.closest('[data-action="assign-task"]');
+      if (sel) moveEntryToTask(sel.dataset.hour, sel.value);
+    }
+  });
+
+  logGroups.addEventListener('dragstart', e => {
+    const handle = e.target.closest('[data-action="drag-handle"]');
+    if (handle) onEntryDragStart(e, handle.dataset.hour);
+  });
+  logGroups.addEventListener('dragend', e => {
+    if (e.target.closest('[data-action="drag-handle"]')) onEntryDragEnd(e);
+  });
+
   document.getElementById('taskList').addEventListener('click', e => {
-    const delBtn = e.target.closest('.task-del');
-    if (delBtn) deleteTask(delBtn.dataset.id);
+    const del = e.target.closest('.task-del');
+    if (del) deleteTask(del.dataset.id);
+  });
+
+  document.getElementById('multilogModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeMultilog();
   });
 }
 
@@ -223,6 +468,7 @@ function setupEventListeners() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 setupEventListeners();
+initHourDropdown();
 buildScoreBtns();
 initChart();
 renderAll(true);

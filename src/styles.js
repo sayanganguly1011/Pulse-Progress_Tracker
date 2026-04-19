@@ -109,35 +109,52 @@ const css = /* css */ `
   /* ── INPUT CARD ───────────────────────────────────────────────────────────────── */
   .field-label { font-size: 10px; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 7px; }
 
+  /* ── HOUR NAVIGATOR ──────────────────────────────────────────────────────────── */
   .hour-nav {
     display:         flex;
     align-items:     center;
-    justify-content: space-between;
-    margin-bottom:   18px;
+    justify-content: center;
+    gap:             8px;
+    margin-bottom:   8px;
     background:      var(--surface2);
     border:          1px solid var(--border);
-    padding:         10px 12px;
+    padding:         10px 8px;
   }
-  .hour-arrow {
-    background:    none;
-    border:        1px solid var(--border);
-    color:         var(--text-dim);
-    font-family:   var(--mono);
-    font-size:     12px;
-    padding:       4px 10px;
-    cursor:        pointer;
-    transition:    all 0.15s;
+  .hour-ctrl {
+    background:  transparent;
+    border:      1px solid var(--border);
+    color:       var(--text-dim);
+    font-size:   14px;
+    padding:     8px 12px;
+    cursor:      pointer;
+    transition:  all 0.15s;
   }
-  .hour-arrow:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-  .hour-arrow:disabled              { opacity: 0.12; cursor: not-allowed; }
-  .hour-center { text-align: center; }
-  .hour-big    { font-family: var(--display); font-size: 36px; color: var(--accent); letter-spacing: 4px; line-height: 1; }
-  .hour-label  { font-size: 9px; color: var(--text-dim); letter-spacing: 2px; margin-top: 2px; }
+  .hour-ctrl:hover { color: var(--accent); border-color: var(--accent); background: var(--surface3); }
 
-  /* ── SCORE GRID ( -5 … +5 ) ───────────────────────────────────────────────── */
-  .score-section   { margin-bottom: 14px; }
-  .score-zone-label { font-size: 9px; letter-spacing: 2px; color: var(--text-dim); margin-bottom: 5px; }
-  .score-row       { display: grid; gap: 5px; margin-bottom: 5px; }
+  .hour-sel {
+    background:     transparent;
+    border:         none;
+    color:          var(--accent);
+    font-family:    var(--display);
+    font-size:      32px;
+    letter-spacing: 3px;
+    line-height:    1;
+    outline:        none;
+    cursor:         pointer;
+    text-align:     center;
+    transition:     all 0.15s;
+    padding:        0 10px;
+    flex:           1;
+  }
+  .hour-sel:hover,
+  .hour-sel:focus { background: var(--surface); }
+  .hour-sel option { background: var(--surface); color: var(--text-bright); font-family: var(--mono); font-size: 14px; letter-spacing: 0; }
+
+  .hour-label { font-size: 9px; color: var(--text-dim); letter-spacing: 2px; text-align: center; margin-bottom: 18px; height: 12px; }
+
+  /* ── SCORE GRID ( -5 … +5 ) ──────────────────────────────────────────────── */
+  .score-section    { margin-bottom: 14px; }
+  .score-row        { display: grid; gap: 5px; margin-bottom: 5px; }
   .score-row.neg-row { grid-template-columns: repeat(5, 1fr); }
   .score-row.pos-row { grid-template-columns: repeat(6, 1fr); }
 
@@ -156,7 +173,6 @@ const css = /* css */ `
   .score-btn.neg-btn:hover  { border-color: var(--red);   color: var(--red);   background: var(--red-dim); }
   .score-btn.zero-btn:hover { border-color: var(--text-dim); color: var(--text); }
   .score-btn.pos-btn:hover  { border-color: var(--green); color: var(--green); background: var(--green-dim); }
-
   .score-btn.sel.neg-btn  { background: var(--red);    border-color: var(--red);    color: #fff; }
   .score-btn.sel.zero-btn { background: var(--surface3); border-color: #555;        color: var(--text-bright); }
   .score-btn.sel.pos-btn  { background: var(--green);  border-color: var(--green);  color: #000; }
@@ -207,8 +223,11 @@ const css = /* css */ `
   }
   .new-task-btn:hover { border-color: var(--accent); color: var(--accent); }
 
+  /* ── BUTTON GROUP ────────────────────────────────────────────────────────────── */
+  .btn-group-row { display: flex; gap: 8px; }
+
   .log-btn {
-    width:          100%;
+    flex:           1;
     background:     var(--accent);
     border:         none;
     color:          #000;
@@ -221,7 +240,20 @@ const css = /* css */ `
   }
   .log-btn:hover { background: #fbbf24; }
 
-  /* ── STATS CARD ────────────────────────────────────────────────────────────────── */
+  .clear-hour-btn {
+    background:     var(--surface3);
+    border:         1px solid var(--border);
+    color:          var(--red);
+    font-family:    var(--mono);
+    font-size:      10px;
+    letter-spacing: 1px;
+    padding:        0 15px;
+    cursor:         pointer;
+    transition:     all 0.2s;
+  }
+  .clear-hour-btn:hover { background: var(--red-dim); border-color: var(--red); }
+
+  /* ── STATS CARD ──────────────────────────────────────────────────────────────── */
   .stat-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--border); }
   .stat-row:last-child { border-bottom: none; }
   .stat-name { font-size: 10px; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; }
@@ -266,7 +298,7 @@ const css = /* css */ `
   .task-del        { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 9px; padding: 0 0 0 4px; transition: color 0.15s; }
   .task-del:hover  { color: var(--red); }
 
-  /* ── WEEKLY VELOCITY ───────────────────────────────────────────────────────────── */
+  /* ── WEEKLY PROGRESS ───────────────────────────────────────────────────────────── */
   .weekly-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-top: 10px; }
 
   .week-day         { background: var(--surface2); border: 1px solid var(--border); padding: 12px 8px; text-align: center; cursor: pointer; transition: border-color 0.15s; }
@@ -276,9 +308,10 @@ const css = /* css */ `
   .wd-pct           { font-family: var(--display); font-size: 20px; line-height: 1; }
   .wd-date          { font-size: 7px; color: var(--text-dim); margin-top: 4px; }
 
-  /* ── ACTIVITY LOG ( GROUPED ) ─────────────────────────────────────────────────── */
+  /* ── ACTIVITY LOG ────────────────────────────────────────────────────────────── */
   .log-groups  { display: flex; flex-direction: column; gap: 2px; }
-  .log-group   { border: 1px solid var(--border); }
+  .log-group   { border: 1px solid var(--border); transition: background 0.2s; }
+  .log-group.drag-over { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 8px rgba(245, 158, 11, 0.3); }
 
   .group-header {
     display:        flex;
@@ -292,12 +325,11 @@ const css = /* css */ `
     user-select:    none;
   }
   .group-header:hover { background: var(--surface3); }
-  .group-arrow  { font-size: 9px; color: var(--text-dim); min-width: 10px; }
-  .group-name   { font-family: var(--display); font-size: 15px; letter-spacing: 1.5px; flex: 1; }
-  .group-meta   { font-size: 9px; color: var(--text-dim); letter-spacing: 1px; }
-  .group-eff    { font-family: var(--display); font-size: 16px; letter-spacing: 1px; min-width: 48px; text-align: right; }
+  .group-arrow { font-size: 9px; color: var(--text-dim); min-width: 10px; }
+  .group-name  { font-family: var(--display); font-size: 15px; letter-spacing: 1.5px; flex: 1; }
+  .group-eff   { font-family: var(--display); font-size: 16px; letter-spacing: 1px; min-width: 48px; text-align: right; }
 
-  .group-entries { display: flex; flex-direction: column; }
+  .group-entries { display: flex; flex-direction: column; min-height: 10px; }
 
   .log-entry {
     display:     flex;
@@ -306,11 +338,21 @@ const css = /* css */ `
     padding:     7px 14px;
     background:  var(--surface);
     border-top:  1px solid var(--border);
+    cursor:      default;
+    transition:  background 0.15s;
   }
-  .log-hour      { color: var(--text-dim); min-width: 42px; font-size: 11px; }
-  .log-bar-wrap  { flex: 0 0 80px; height: 3px; background: var(--border); position: relative; }
-  .log-bar-fill  { height: 100%; position: absolute; top: 0; }
-  .log-score     { font-family: var(--display); font-size: 20px; min-width: 32px; text-align: center; }
+  .log-entry:hover   { background: var(--surface2); }
+  .log-entry.dragging { opacity: 0.3; }
+  .log-entry.selected { background: var(--surface3); border-left: 3px solid var(--accent); padding-left: 11px; }
+
+  .entry-checkbox { width: 14px; height: 14px; cursor: pointer; accent-color: var(--accent); }
+  .drag-handle    { cursor: grab; color: var(--text-dim); font-size: 10px; letter-spacing: -1px; padding: 0 4px; user-select: none; }
+  .drag-handle:active { cursor: grabbing; }
+
+  .log-hour     { color: var(--text-bright); min-width: 42px; font-size: 11px; font-weight: 600; }
+  .log-bar-wrap { flex: 0 0 60px; height: 3px; background: var(--border); position: relative; }
+  .log-bar-fill { height: 100%; position: absolute; top: 0; }
+  .log-score    { font-family: var(--display); font-size: 20px; min-width: 32px; text-align: center; }
 
   .entry-detail-field {
     flex:        1;
@@ -324,8 +366,20 @@ const css = /* css */ `
     padding:     2px 4px;
     transition:  all 0.15s;
   }
-  .entry-detail-field:focus        { border-bottom-color: var(--border); color: var(--text); }
-  .entry-detail-field::placeholder { color: var(--text-dim); opacity: 0.4; }
+  .entry-detail-field:focus { border-bottom-color: var(--border); color: var(--text); }
+
+  .entry-task-mini {
+    background:  var(--surface3);
+    border:      1px solid var(--border);
+    color:       var(--text-dim);
+    font-family: var(--mono);
+    font-size:   8px;
+    padding:     2px 4px;
+    outline:     none;
+    cursor:      pointer;
+    max-width:   80px;
+  }
+  .entry-task-mini:hover { border-color: var(--text-dim); }
 
   .entry-del {
     background:  none;
@@ -340,7 +394,39 @@ const css = /* css */ `
   .log-entry:hover .entry-del { opacity: 1; }
   .entry-del:hover             { color: var(--red); }
 
-  /* ── FOOTER ──────────────────────────────────────────────────────────────────────── */
+  /* ── LOG TOOLBAR ( bulk delete ) ─────────────────────────────────────────────── */
+  .log-toolbar { padding: 12px 22px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; background: var(--surface2); }
+  .log-toolbar.hidden { display: none; }
+
+  .bulk-delete-btn {
+    background:    var(--red-dim);
+    border:        1px solid var(--red);
+    color:         var(--red);
+    font-family:   var(--mono);
+    font-size:     10px;
+    letter-spacing: 1px;
+    padding:       6px 14px;
+    cursor:        pointer;
+    transition:    all 0.2s;
+  }
+  .bulk-delete-btn:hover { background: var(--red); color: #fff; }
+
+  /* ── CLEAR DAY ───────────────────────────────────────────────────────────────── */
+  .clear-day-wrap { padding: 15px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; }
+  .clear-day-btn  {
+    background:    none;
+    border:        1px solid var(--border);
+    color:         var(--text-dim);
+    font-family:   var(--mono);
+    font-size:     9px;
+    letter-spacing: 1px;
+    padding:       6px 14px;
+    cursor:        pointer;
+    transition:    all 0.2s;
+  }
+  .clear-day-btn:hover { border-color: var(--red); color: var(--red); background: var(--red-dim); }
+
+  /* ── FOOTER ──────────────────────────────────────────────────────────────────── */
   footer { border-top: 1px solid var(--border); padding-top: 12px; display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); }
 
   /* ── TOAST ───────────────────────────────────────────────────────────────────────── */
@@ -361,10 +447,71 @@ const css = /* css */ `
     pointer-events: none;
     letter-spacing: 1px;
   }
-  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.show  { transform: translateY(0); opacity: 1; }
+  .toast.error { border-color: var(--red); color: var(--red); }
 
-  /* ── CHART ZERO LINE ──────────────────────────────────────────────────────────────── */
-  .chart-zero { position: absolute; left: 0; right: 0; pointer-events: none; }
+  /* ── MULTILOG MODAL ──────────────────────────────────────────────────────────── */
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+  .modal-overlay.show { display: flex; }
+  .modal-box    { background: var(--surface); border: 1px solid var(--border); padding: 28px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; }
+  .modal-title  { font-family: var(--display); font-size: 22px; letter-spacing: 2px; color: var(--accent); margin-bottom: 20px; }
+  .modal-section { margin-bottom: 22px; }
+  .modal-label  { font-size: 10px; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 10px; display: block; }
+
+  .hour-grid    { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 16px; }
+  .hour-checkbox { display: flex; align-items: center; gap: 6px; padding: 8px; background: var(--surface2); border: 1px solid var(--border); cursor: pointer; transition: all 0.15s; }
+  .hour-checkbox:hover { border-color: var(--accent); background: var(--surface3); }
+  .hour-checkbox input { cursor: pointer; accent-color: var(--accent); }
+  .hour-checkbox input:checked ~ span { color: var(--accent); font-weight: 600; }
+  .hour-checkbox span { flex: 1; font-size: 12px; }
+
+  .modal-score-row { display: grid; gap: 5px; margin-bottom: 5px; }
+  .modal-score-row.neg { grid-template-columns: repeat(5, 1fr); }
+  .modal-score-row.pos { grid-template-columns: repeat(6, 1fr); }
+  .modal-score-btn {
+    background:  var(--surface2);
+    border:      1px solid var(--border);
+    color:       var(--text-dim);
+    font-family: var(--display);
+    font-size:   16px;
+    padding:     8px 2px;
+    cursor:      pointer;
+    transition:  all 0.15s;
+  }
+  .modal-score-btn:hover { border-color: var(--text); color: var(--text); }
+  .modal-score-btn.sel   { background: var(--accent); border-color: var(--accent); color: #000; }
+
+  .modal-input {
+    width:        100%;
+    background:   var(--surface2);
+    border:       1px solid var(--border);
+    color:        var(--text);
+    font-family:  var(--mono);
+    font-size:    11px;
+    padding:      8px 10px;
+    outline:      none;
+    margin-bottom: 12px;
+    transition:   border-color 0.15s;
+  }
+  .modal-input:focus { border-color: var(--accent); }
+
+  .modal-buttons { display: flex; flex-direction: column; gap: 10px; }
+  .modal-btn {
+    background:    var(--surface2);
+    border:        1px solid var(--border);
+    color:         var(--text);
+    font-family:   var(--mono);
+    font-size:     11px;
+    padding:       10px;
+    cursor:        pointer;
+    letter-spacing: 1px;
+    transition:    all 0.15s;
+  }
+  .modal-btn:hover           { border-color: var(--accent); color: var(--accent); }
+  .modal-btn.primary         { background: var(--accent); border-color: var(--accent); color: #000; }
+  .modal-btn.primary:hover   { background: #fbbf24; }
+  .modal-btn.danger          { color: var(--red); }
+  .modal-btn.danger:hover    { border-color: var(--red); background: var(--red-dim); }
 
   /* ── RESPONSIVE ─────────────────────────────────────────────────────────────────── */
   @media (max-width: 820px) {

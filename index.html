@@ -17,7 +17,7 @@
   <header>
     <div>
       <div class="logo">PULSE</div>
-      <div class="logo-sub">// DATA VELOCITY TRACKER</div>
+      <div class="logo-sub">// PROGRESS TRACKER</div>
     </div>
     <div class="header-right">
       <div class="date-big" id="headerDate">—</div>
@@ -38,7 +38,7 @@
 
     <!-- Chart panel -->
     <div class="card">
-      <div class="card-micro">hourly output — click bar to select hour</div>
+      <div class="card-micro">hourly output &amp; momentum flow</div>
       <div class="card-heading">DAILY PROGRESS GRAPH</div>
       <div class="chart-wrap">
         <canvas id="chart"></canvas>
@@ -54,13 +54,11 @@
 
         <!-- Hour navigator -->
         <div class="hour-nav">
-          <button class="hour-arrow" id="prevHourBtn">◀</button>
-          <div class="hour-center">
-            <div class="hour-big"   id="hourDisplay">00:00</div>
-            <div class="hour-label" id="hourNowTag">—</div>
-          </div>
-          <button class="hour-arrow" id="nextHourBtn">▶</button>
+          <button class="hour-ctrl" id="prevHourCtrl">◀</button>
+          <select id="hourSelect" class="hour-sel"></select>
+          <button class="hour-ctrl" id="nextHourCtrl">▶</button>
         </div>
+        <div class="hour-label" id="hourNowTag">—</div>
 
         <!-- Score grid -->
         <div class="field-label">score &nbsp;-5 — +5</div>
@@ -85,7 +83,20 @@
           <button class="new-task-btn" id="newTaskFocusBtn">+ NEW</button>
         </div>
 
-        <button class="log-btn" id="logEntryBtn">LOG ENTRY</button>
+        <!-- Action buttons -->
+        <div class="btn-group-row">
+          <button class="log-btn"      id="logEntryBtn">LOG ENTRY</button>
+          <button class="clear-hour-btn" id="clearHourBtn" title="Clear Current Hour">CLEAR</button>
+        </div>
+
+        <!-- Multilog trigger -->
+        <div style="margin-top:12px;">
+          <button
+            class="nav-btn"
+            id="multilogOpenBtn"
+            style="width:100%; background:var(--surface2); border:1px solid var(--accent); color:var(--accent);"
+          >MULTILOG</button>
+        </div>
       </div>
 
       <!-- Stats card -->
@@ -109,8 +120,8 @@
         </div>
       </div>
 
-    </div>
-  </div>
+    </div><!-- /right-panel -->
+  </div><!-- /main-grid -->
 
   <!-- ── TASK MANAGER ────────────────────────────────────────────────────── -->
   <div class="card" id="taskManagerCard">
@@ -122,26 +133,33 @@
         class="task-add-input"
         id="newTaskInput"
         placeholder="new task name..."
+        maxlength="30"
       >
       <button class="task-add-btn" id="addTaskBtn">+ ADD TASK</button>
     </div>
-    <div class="task-list" id="taskList">
-      <span style="color:var(--text-dim); font-size:11px;">NO TASKS YET — ADD ONE ABOVE</span>
-    </div>
+    <div class="task-list" id="taskList"></div>
   </div>
 
-  <!-- ── WEEKLY VELOCITY ────────────────────────────────────────────────── -->
+  <!-- ── WEEKLY PROGRESS ────────────────────────────────────────────────── -->
   <div class="card">
-    <div class="card-micro">weekly velocity</div>
+    <div class="card-micro">weekly progress</div>
     <div class="card-heading">7-DAY PERFORMANCE HISTORY</div>
     <div class="weekly-grid" id="weeklyGrid"></div>
   </div>
 
-  <!-- ── ACTIVITY LOG ───────────────────────────────────────────────────── -->
-  <div class="card">
-    <div class="card-micro">activity log — grouped by task</div>
-    <div class="card-heading" style="margin-bottom:12px;">ENTRY LOG</div>
+  <!-- ── ACTIVITY LOG ──────────────────────────────────────────────────────── -->
+  <div class="card" style="padding:0;">
+    <div style="padding:22px 22px 10px;">
+      <div class="card-micro">activity log — interact &amp; reorganize</div>
+      <div class="card-heading" style="margin-bottom:0;">ENTRY LOG</div>
+    </div>
     <div class="log-groups" id="logGroups"></div>
+    <div class="log-toolbar hidden" id="logToolbar">
+      <button class="bulk-delete-btn" id="bulkDeleteBtn">DELETE SELECTED</button>
+    </div>
+    <div class="clear-day-wrap">
+      <button class="clear-day-btn" id="clearDayBtn">CLEAR ALL DATA FOR THIS DAY</button>
+    </div>
   </div>
 
   <footer>
@@ -149,12 +167,53 @@
     <span id="footerInfo">—</span>
   </footer>
 
-</div>
+</div><!-- /shell -->
 
-<!-- Toast notification -->
+<!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<!-- Entry point -->
+<!-- ── MULTILOG MODAL ──────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="multilogModal">
+  <div class="modal-box">
+    <div class="modal-title">MULTILOG — BATCH ENTRY</div>
+
+    <div class="modal-section">
+      <label class="modal-label">Select Hours</label>
+      <!-- Populated dynamically by openMultilog() in components.js -->
+      <div class="hour-grid" id="multilogHourGrid"></div>
+    </div>
+
+    <div class="modal-section">
+      <label class="modal-label">Score -5 to +5</label>
+      <div class="modal-score-row neg" id="multilogNegScore"></div>
+      <div class="modal-score-row pos" id="multilogPosScore"></div>
+    </div>
+
+    <div class="modal-section">
+      <label class="modal-label">Task (Optional)</label>
+      <select class="modal-input" id="multilogTaskSel" style="margin-bottom:12px;"></select>
+    </div>
+
+    <div class="modal-section">
+      <label class="modal-label">Details (Optional)</label>
+      <input
+        type="text"
+        class="modal-input"
+        id="multilogDetail"
+        placeholder="what did you work on..."
+      >
+    </div>
+
+    <div class="modal-buttons">
+      <button class="modal-btn primary" id="multilogLogBtn">LOG TO SELECTED</button>
+      <button class="modal-btn"         id="multilogAutoFillEmptyBtn">AUTOFILL (Empty Only)</button>
+      <button class="modal-btn"         id="multilogAutoFillAllBtn">AUTOFILL ALL (Overwrite)</button>
+      <button class="modal-btn danger"  id="multilogCloseBtn">CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<!-- Entry point — Vite resolves all imports at build time -->
 <script type="module" src="/src/main.js"></script>
 
 </body>
