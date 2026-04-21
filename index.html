@@ -29,8 +29,9 @@
   <div class="day-nav">
     <button class="nav-btn"            id="prevBtn">◀ PREV</button>
     <input  type="date" class="nav-date-input" id="dateJump">
-    <button class="nav-btn"            id="nextBtn">NEXT ▶</button>
-    <button class="nav-btn today-btn"  id="todayBtn">TODAY</button>
+    <button class="nav-btn"           id="nextBtn">NEXT ▶</button>
+    <button class="nav-btn today-btn" id="todayBtn">TODAY</button>
+    <button class="nav-btn" id="formatToggleBtn" style="margin-left:auto;">24H</button>
   </div>
 
   <!-- ── MAIN GRID ──────────────────────────────────────────────────────── -->
@@ -179,7 +180,6 @@
 
     <div class="modal-section">
       <label class="modal-label">Select Hours</label>
-      <!-- Populated dynamically by openMultilog() in components.js -->
       <div class="hour-grid" id="multilogHourGrid"></div>
     </div>
 

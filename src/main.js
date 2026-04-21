@@ -2,16 +2,18 @@ import { injectStyles } from './styles.js';
 import {
   state,
   getTodayStr,
-  formatDisplayDate,
   loadAll,
   saveAll,
   getDay,
   loadTasks,
   saveTasks,
+  loadTimeFormat,
   TASK_COLORS,
 } from './lib.js';
 import {
   toast,
+  updateFormatButton,
+  toggleTimeFormat,
   initHourDropdown,
   buildScoreBtns,
   adjustHour,
@@ -40,11 +42,15 @@ function renderAll(dateChanged = false) {
   const today = getTodayStr();
 
   if (dateChanged) {
-    document.getElementById('dateJump').value    = state.viewDate;
-    document.getElementById('headerDate').textContent = formatDisplayDate(state.viewDate);
+    document.getElementById('dateJump').value = state.viewDate;
+    document.getElementById('headerDate').textContent = new Date(state.viewDate + 'T00:00:00')
+      .toLocaleDateString(undefined, {
+        weekday: 'short', month: 'short', day: '2-digit', year: 'numeric',
+      })
+      .toUpperCase();
   }
-  document.getElementById('nextBtn').disabled = (state.viewDate >= today);
 
+  document.getElementById('nextBtn').disabled = (state.viewDate >= today);
   updateHourDisplay();
   refreshChart();
   refreshStats();
@@ -54,7 +60,8 @@ function renderAll(dateChanged = false) {
   refreshWeekly(jumpToDate);
 
   const all = loadAll();
-  document.getElementById('footerInfo').textContent = `${Object.keys(all).length} DAYS ARCHIVED`;
+  document.getElementById('footerInfo').textContent =
+    `${Object.keys(all).length} DAYS ARCHIVED`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -108,11 +115,16 @@ function logEntry() {
   const all    = loadAll();
 
   if (!all[state.viewDate]) all[state.viewDate] = {};
-  all[state.viewDate][h] = { score: state.selScore, detail: detail || '', taskId: taskId || null };
+  all[state.viewDate][h] = {
+    score:  state.selScore,
+    detail: detail || '',
+    taskId: taskId || null,
+  };
 
   try {
     saveAll(all);
-    toast(`LOGGED ${h}:00 @ ${state.selScore > 0 ? '+' : ''}${state.selScore}`);
+    const sign = state.selScore > 0 ? '+' : '';
+    toast(`LOGGED ${h}:00 @ ${sign}${state.selScore}`);
     document.getElementById('detailInput').value = '';
     renderAll();
   } catch {
@@ -127,12 +139,8 @@ function removeEntry(h) {
     if (!Object.keys(all[state.viewDate]).length) delete all[state.viewDate];
   }
   state.selectedEntries.delete(h);
-  try {
-    saveAll(all);
-    renderAll();
-  } catch {
-    toast('STORAGE FULL — Could not remove entry!', true);
-  }
+  try { saveAll(all); renderAll(); }
+  catch { toast('STORAGE FULL', true); }
 }
 
 function updateEntryDetail(date, h, val) {
@@ -149,13 +157,8 @@ function clearHourSlot() {
   if (all[state.viewDate]?.[h]) {
     delete all[state.viewDate][h];
     if (!Object.keys(all[state.viewDate]).length) delete all[state.viewDate];
-    try {
-      saveAll(all);
-      toast(`CLEARED HOUR ${h}:00`);
-      renderAll();
-    } catch {
-      toast('STORAGE FULL', true);
-    }
+    try { saveAll(all); toast(`CLEARED HOUR ${h}:00`); renderAll(); }
+    catch { toast('STORAGE FULL', true); }
   } else {
     toast('NO DATA IN THIS SLOT');
   }
@@ -166,13 +169,8 @@ function clearFullDay() {
   const all = loadAll();
   if (all[state.viewDate]) {
     delete all[state.viewDate];
-    try {
-      saveAll(all);
-      toast('DAY LOGS PURGED');
-      renderAll();
-    } catch {
-      toast('STORAGE FULL', true);
-    }
+    try { saveAll(all); toast('DAY LOGS PURGED'); renderAll(); }
+    catch { toast('STORAGE FULL', true); }
   }
 }
 
@@ -280,16 +278,13 @@ function deleteTask(id) {
       if (entry?.taskId === id) entry.taskId = null;
     }
   }
-  try {
-    saveAll(all);
-    renderAll();
-  } catch {
-    toast('STORAGE FULL', true);
-  }
+  try { saveAll(all); renderAll(); }
+  catch { toast('STORAGE FULL', true); }
 }
 
 function focusTaskManager() {
-  document.getElementById('taskManagerCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  document.getElementById('taskManagerCard')
+    .scrollIntoView({ behavior: 'smooth', block: 'center' });
   setTimeout(() => document.getElementById('newTaskInput').focus(), 400);
 }
 
@@ -307,7 +302,11 @@ function multilogLogToSelected() {
   if (!all[state.viewDate]) all[state.viewDate] = {};
 
   state.multilogSelectedHours.forEach(h => {
-    all[state.viewDate][h] = { score: state.multilogScore, detail: detail || '', taskId };
+    all[state.viewDate][h] = {
+      score:  state.multilogScore,
+      detail: detail || '',
+      taskId,
+    };
   });
 
   try {
@@ -329,7 +328,7 @@ function multilogAutoFill(overwrite) {
   const all     = loadAll();
   if (!all[state.viewDate]) all[state.viewDate] = {};
 
-  const hours   = Array.from(state.multilogSelectedHours, h => parseInt(h));
+  const hours   = Array.from(state.multilogSelectedHours, h => parseInt(h, 10));
   const minHour = Math.min(...hours);
   const maxHour = Math.max(...hours);
   let filled    = 0;
@@ -373,7 +372,12 @@ function setupEventListeners() {
   document.getElementById('todayBtn').addEventListener('click', goToday);
   document.getElementById('dateJump').addEventListener('change', e => jumpToDate(e.target.value));
 
-  // ── Hour navigator ─────────────────────────────────────────────────────────
+  // ── Time format toggle ────────────────────────────────────────────────────
+  document.getElementById('formatToggleBtn').addEventListener('click',
+    () => toggleTimeFormat(renderAll),
+  );
+
+  // ── Hour navigator ────────────────────────────────────────────────────────
   document.getElementById('prevHourCtrl').addEventListener('click', () => adjustHour(-1));
   document.getElementById('nextHourCtrl').addEventListener('click', () => adjustHour(1));
   document.getElementById('hourSelect').addEventListener('change',  e => jumpHour(e.target.value));
@@ -390,15 +394,23 @@ function setupEventListeners() {
     if (e.key === 'Enter') addTask();
   });
 
-  // ── Bulk actions ───────────────────────────────────────────────────────────
+  // ── Bulk  clear ──────────────────────────────────────────────────────────
   document.getElementById('bulkDeleteBtn').addEventListener('click', bulkDeleteSelected);
   document.getElementById('clearDayBtn').addEventListener('click',   clearFullDay);
 
-  // ── Multilog modal buttons ─────────────────────────────────────────────────
-  document.getElementById('multilogLogBtn').addEventListener('click',          multilogLogToSelected);
-  document.getElementById('multilogAutoFillEmptyBtn').addEventListener('click', () => multilogAutoFill(false));
-  document.getElementById('multilogAutoFillAllBtn').addEventListener('click',   () => multilogAutoFill(true));
-  document.getElementById('multilogCloseBtn').addEventListener('click',         closeMultilog);
+  // ── Multilog modal buttons ────────────────────────────────────────────────
+  document.getElementById('multilogLogBtn').addEventListener('click',
+    multilogLogToSelected);
+  document.getElementById('multilogAutoFillEmptyBtn').addEventListener('click',
+    () => multilogAutoFill(false));
+  document.getElementById('multilogAutoFillAllBtn').addEventListener('click',
+    () => multilogAutoFill(true));
+  document.getElementById('multilogCloseBtn').addEventListener('click', closeMultilog);
+
+  // Close modal when clicking the overlay backdrop
+  document.getElementById('multilogModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeMultilog();
+  });
 
   // ── Multilog hour checkboxes  ───────────────
   document.getElementById('multilogHourGrid').addEventListener('change', e => {
@@ -413,21 +425,21 @@ function setupEventListeners() {
   const logGroups = document.getElementById('logGroups');
 
   logGroups.addEventListener('click', e => {
-    const entry = e.target.closest('.log-entry');
-    if (!entry) return;
+    const action = e.target.dataset.action ||
+                   e.target.closest('[data-action]')?.dataset.action;
 
-    const isInteractive = e.target.closest(
-      'input, select, button, .entry-detail-field, .entry-task-mini, .entry-del, .drag-handle',
-    );
-
-    const action = e.target.dataset.action || e.target.closest('[data-action]')?.dataset.action;
-
-    if (action === 'select' || (!isInteractive && entry)) {
-      toggleEntrySelect(entry.dataset.hour);
-    }
     if (action === 'delete-entry') {
       removeEntry(e.target.closest('[data-action]').dataset.hour);
+      return;
     }
+
+    // Bare row click (not on an interactive child) → toggle select
+    const entry = e.target.closest('.log-entry');
+    if (!entry) return;
+    const isInteractive = e.target.closest(
+      'input, select, button, .entry-detail-field, .drag-handle',
+    );
+    if (!isInteractive) toggleEntrySelect(entry.dataset.hour);
   });
 
   logGroups.addEventListener('change', e => {
@@ -436,8 +448,7 @@ function setupEventListeners() {
       toggleEntrySelect(e.target.dataset.hour);
     }
     if (action === 'update-detail') {
-      const f = e.target;
-      updateEntryDetail(f.dataset.date, f.dataset.hour, f.value);
+      updateEntryDetail(e.target.dataset.date, e.target.dataset.hour, e.target.value);
     }
     if (action === 'assign-task') {
       const sel = e.target.closest('[data-action="assign-task"]');
@@ -445,6 +456,7 @@ function setupEventListeners() {
     }
   });
 
+  // Drag events on entry drag handles
   logGroups.addEventListener('dragstart', e => {
     const handle = e.target.closest('[data-action="drag-handle"]');
     if (handle) onEntryDragStart(e, handle.dataset.hour);
@@ -453,13 +465,10 @@ function setupEventListeners() {
     if (e.target.closest('[data-action="drag-handle"]')) onEntryDragEnd(e);
   });
 
+  // ── Task list — event delegation ──────────────────────────────────────────
   document.getElementById('taskList').addEventListener('click', e => {
     const del = e.target.closest('.task-del');
     if (del) deleteTask(del.dataset.id);
-  });
-
-  document.getElementById('multilogModal').addEventListener('click', e => {
-    if (e.target === e.currentTarget) closeMultilog();
   });
 }
 
@@ -467,6 +476,8 @@ function setupEventListeners() {
 //  INIT
 // ─────────────────────────────────────────────────────────────────────────────
 
+loadTimeFormat();          // restore persisted 12h/24h preference
+updateFormatButton();      // reflect it on the toggle button
 setupEventListeners();
 initHourDropdown();
 buildScoreBtns();

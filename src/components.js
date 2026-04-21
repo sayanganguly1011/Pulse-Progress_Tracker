@@ -5,6 +5,9 @@ import {
   getDay,
   loadAll,
   loadTasks,
+  saveTimeFormat,
+  formatHour,
+  getChartLabels,
   scoreColor,
   effPct,
   effClass,
@@ -23,14 +26,44 @@ export function toast(message, isError = false) {
   el._tid = setTimeout(() => el.classList.remove('show'), 2200);
 }
 
+// ── TIME FORMAT TOGGLE ────────────────────────────────────────────────────────
+
+export function updateFormatButton() {
+  document.getElementById('formatToggleBtn').textContent =
+    state.timeFormat === '24h' ? '24H' : '12H';
+}
+
+export function toggleTimeFormat(renderAllFn) {
+  state.timeFormat = state.timeFormat === '24h' ? '12h' : '24h';
+  saveTimeFormat();
+  updateFormatButton();
+
+
+  initHourDropdown();
+
+
+  const hourGrid = document.getElementById('multilogHourGrid');
+  if (hourGrid && hourGrid.children.length) {
+    hourGrid.innerHTML = Array.from({ length: 24 }, (_, i) => {
+      const h = String(i).padStart(2, '00');
+      const isChecked = state.multilogSelectedHours.has(h) ? 'checked' : '';
+      return `<label class="hour-checkbox">
+        <input type="checkbox" data-modal-hour="${h}" ${isChecked}>
+        <span>${formatHour(h)}</span>
+      </label>`;
+    }).join('');
+  }
+
+  renderAllFn(false);
+}
+
 // ── HOUR NAVIGATOR ────────────────────────────────────────────────────────────
 
 export function initHourDropdown() {
   const sel = document.getElementById('hourSelect');
-  sel.innerHTML = Array.from({ length: 24 }, (_, i) => {
-    const h = String(i).padStart(2, '0') + ':00';
-    return `<option value="${i}">${h}</option>`;
-  }).join('');
+  sel.innerHTML = Array.from({ length: 24 }, (_, i) =>
+    `<option value="${i}">${formatHour(String(i).padStart(2, '0'))}</option>`,
+  ).join('');
 }
 
 export function updateHourDisplay() {
@@ -45,13 +78,13 @@ export function updateHourDisplay() {
 export function adjustHour(delta) {
   state.selHour = (state.selHour + delta + 24) % 24;
   updateHourDisplay();
-  toast(`HOUR: ${String(state.selHour).padStart(2, '0')}:00`);
+  toast(`HOUR: ${formatHour(String(state.selHour).padStart(2, '0'))}`);
 }
 
 export function jumpHour(val) {
   state.selHour = parseInt(val, 10);
   updateHourDisplay();
-  toast(`HOUR: ${String(state.selHour).padStart(2, '0')}:00`);
+  toast(`HOUR: ${formatHour(String(state.selHour).padStart(2, '0'))}`);
 }
 
 // ── SCORE BUTTONS ─────────────────────────────────────────────────
@@ -90,7 +123,7 @@ export function initChart() {
 
   state.chart = new Chart(ctx, {
     data: {
-      labels: Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}h`),
+      labels: getChartLabels(),
       datasets: [
         {
           // Momentum line overlay
@@ -138,8 +171,9 @@ export function initChart() {
         },
         x: {
           position: { y: 0 },
-          grid:  { display: false },
-          ticks: { color: '#888', font: { size: 9, weight: '600' }, padding: 5 },
+          grid:     { display: false },
+          offset:   state.timeFormat === '12h',
+          ticks:    { color: '#888', font: { size: 9, weight: '600' }, padding: 5 },
         },
       },
       onClick: (_, els) => {
@@ -156,15 +190,14 @@ export function refreshChart() {
     return day[h] !== undefined ? day[h].score : null;
   });
 
-  // Bar colours: red tint for negative, green tint for positive
+  state.chart.data.labels                      = getChartLabels();
   state.chart.data.datasets[1].data            = scores;
   state.chart.data.datasets[1].backgroundColor = scores.map(v => {
     if (v === null) return 'rgba(20, 20, 20, 0.5)';
     return v < 0 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(34, 197, 94, 0.4)';
   });
-
-  // Momentum line uses the same score values
-  state.chart.data.datasets[0].data = scores;
+  state.chart.data.datasets[0].data       = scores;
+  state.chart.options.scales.x.offset     = state.timeFormat === '12h';
   state.chart.update({ duration: 0 });
 }
 
@@ -254,11 +287,8 @@ export function renderLogGroups() {
     const barSide   = e.score < 0 ? 'right:0' : 'left:0';
     const isSelected = state.selectedEntries.has(h);
 
-      return `
-      <div
-        class="log-entry${isSelected ? ' selected' : ''}"
-        data-hour="${h}"
-      >
+    return `
+      <div class="log-entry${isSelected ? ' selected' : ''}" data-hour="${h}">
         <input
           type="checkbox"
           class="entry-checkbox"
@@ -272,7 +302,7 @@ export function renderLogGroups() {
           data-action="drag-handle"
           data-hour="${h}"
         >::::</div>
-          <span class="log-hour">${h}:00</span>
+        <span class="log-hour">${formatHour(h)}</span>
 
         <select
           class="entry-task-mini"
@@ -282,10 +312,7 @@ export function renderLogGroups() {
         >
           <option disabled>Assign to...</option>
           <option value="__u__" ${isU ? 'selected' : ''}>Unassigned</option>
-          ${taskOptions.replace(
-            `value="${e.taskId}"`,
-            `value="${e.taskId}" selected`,
-          )}
+          ${taskOptions.replace(`value="${e.taskId}"`, `value="${e.taskId}" selected`)}
         </select>
 
           <div class="log-bar-wrap">
@@ -313,15 +340,13 @@ export { renderLogGroups as refreshLogGroups };
 // ── TOOLBAR ( multi-select ) ──────────────────────────────────────────────────
 
 export function updateToolbar() {
-  const toolbar = document.getElementById('logToolbar');
-  toolbar.classList.toggle('hidden', state.selectedEntries.size === 0);
+  document.getElementById('logToolbar')
+    .classList.toggle('hidden', state.selectedEntries.size === 0);
 }
 
 // ── WEEKLY PROGRESS ───────────────────────────────────────────────────────────
 
-/**
- * @param {(key: string) => void} onDayClick  
- */
+/** @param {(key: string) => void} onDayClick */
 export function refreshWeekly(onDayClick) {
   const grid    = document.getElementById('weeklyGrid');
   grid.innerHTML = '';
@@ -369,7 +394,7 @@ export function openMultilog() {
     return `
       <label class="hour-checkbox">
         <input type="checkbox" data-modal-hour="${h}">
-        <span>${h}:00</span>
+        <span>${formatHour(h)}</span>
       </label>`;
   }).join('');
 

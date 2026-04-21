@@ -105,8 +105,6 @@ const css = /* css */ `
 
   /* ── RIGHT PANEL ──────────────────────────────────────────────────────────────── */
   .right-panel { display: flex; flex-direction: column; gap: 16px; }
-
-  /* ── INPUT CARD ───────────────────────────────────────────────────────────────── */
   .field-label { font-size: 10px; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 7px; }
 
   /* ── HOUR NAVIGATOR ──────────────────────────────────────────────────────────── */
@@ -291,7 +289,6 @@ const css = /* css */ `
   .task-add-btn:hover { background: var(--accent); color: #000; }
 
   .task-list { display: flex; flex-wrap: wrap; gap: 8px; }
-
   .task-pill       { display: flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); padding: 5px 10px; font-size: 11px; }
   .task-dot        { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
   .task-pill-name  { color: var(--text); letter-spacing: 0.5px; }

@@ -1,7 +1,7 @@
 {
   "name": "pulse",
   "version": "1.0.0",
-  "description": "PULSE — Data Velocity Tracker. Log and visualise hourly productivity scores.",
+  "description": "PULSE — Progress Tracker. Log and visualise hourly productivity scores.",
   "private": true,
   "type": "module",
   "scripts": {

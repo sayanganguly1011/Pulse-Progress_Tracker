@@ -1,7 +1,10 @@
-// ── CONSTANTS ─────────────────────────────────────────────────────────────────
+// ── STORAGE KEYS ──────────────────────────────────────────────────────────────
 
-export const STORE       = 'pulse';
-export const TASKS_STORE = 'pulse_tasks';
+export const STORE        = 'pulse';
+export const TASKS_STORE  = 'pulse_tasks';
+export const FORMAT_STORE = 'pulse_format';
+
+// ── CONSTANTS ─────────────────────────────────────────────────────────────────
 
 export const TASK_COLORS = [
   '#f59e0b', '#3b82f6', '#a855f7', '#ec4899',
@@ -40,7 +43,8 @@ export const state = {
   draggedHour:          null,           
   selectedEntries:      new Set(),      
   multilogSelectedHours: new Set(),     
-  multilogScore:        null,           
+  multilogScore:        null,
+  timeFormat:            '24h',           
 };
 
 // ── STORAGE — ENTRIES ─────────────────────────────────────────────────────────
@@ -52,7 +56,7 @@ export function loadAll() {
 
 export function saveAll(d) {
   try {
-  localStorage.setItem(STORE, JSON.stringify(d));
+    localStorage.setItem(STORE, JSON.stringify(d));
   } catch (e) {
     console.error('localStorage write error:', e);
     throw e; 
@@ -84,6 +88,42 @@ export function saveTasks(t) {
     console.error('localStorage write error:', e);
     throw e;
 }
+}
+
+// ── STORAGE — TIME FORMAT ─────────────────────────────────────────────────────
+
+export function loadTimeFormat() {
+  state.timeFormat = localStorage.getItem(FORMAT_STORE) || '24h';
+}
+
+export function saveTimeFormat() {
+  localStorage.setItem(FORMAT_STORE, state.timeFormat);
+}
+
+// ── TIME FORMAT HELPERS ───────────────────────────────────────────────────────
+
+export function formatHour(h) {
+  const hour = parseInt(h, 10);
+  if (state.timeFormat === '24h') {
+    return String(hour).padStart(2, '0') + ':00';
+  }
+  const am  = hour < 12;
+  const h12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return String(h12).padStart(2, '0') + (am ? 'am' : 'pm');
+}
+
+
+export function getChartLabels() {
+  if (state.timeFormat === '24h') {
+    return Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}h`);
+  }
+  const labels = [];
+  for (let i = 0; i < 24; i++) {
+    const am  = i < 12;
+    const h12 = i === 0 ? 12 : i > 12 ? i - 12 : i;
+    labels.push(String(h12).padStart(2, '0') + (am ? 'a' : 'p'));
+  }
+  return labels;
 }
 
 // ── COLOR / MATH HELPERS ──────────────────────────────────────────────────────
